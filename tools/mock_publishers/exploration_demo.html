@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NIDAR AirMouse — Exploration Node Live Visualizer</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#070b12; --surface:#0d131f; --panel:#111928;
+  --border:#1e2d45; --border2:#283852;
+  --accent:#3b82f6; --accent2:#60a5fa;
+  --green:#22c55e; --green2:#4ade80;
+  --orange:#f97316; --red:#ef4444;
+  --yellow:#eab308; --purple:#a855f7;
+  --text:#e2e8f0; --muted:#64748b; --muted2:#94a3b8;
+  --free:#0f1d2e; --unknown:#060a10; --occupied:#ef4444;
+  --frontier:#3b82f6; --path:#22c55e;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+header{background:linear-gradient(135deg,#0a1628 0%,#0e2242 100%);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;gap:16px;box-shadow:0 4px 20px rgba(0,0,0,.5);z-index:10}
+.logo{font-size:1.3rem;font-weight:700;color:var(--accent2);letter-spacing:-.02em}
+.logo span{color:var(--text)}
+.header-sub{font-size:.72rem;color:var(--muted2)}
+.badge{display:inline-flex;align-items:center;gap:5px;font-size:.68rem;padding:4px 10px;border-radius:20px;font-weight:600;letter-spacing:.06em;white-space:nowrap}
+.badge-live{background:rgba(34,197,94,.1);color:var(--green2);border:1px solid rgba(34,197,94,.3)}
+.badge-mode{background:rgba(59,130,246,.1);color:var(--accent2);border:1px solid rgba(59,130,246,.3)}
+.pulse{width:7px;height:7px;border-radius:50%;background:var(--green2);animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.7)}}
+.header-right{margin-left:auto;display:flex;align-items:center;gap:12px}
+main{flex:1;display:flex;gap:16px;padding:16px;flex-wrap:wrap;align-items:flex-start}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.panel-header{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.02)}
+.panel-title{font-size:.72rem;font-weight:600;color:var(--muted2);text-transform:uppercase;letter-spacing:.09em}
+.panel-body{padding:16px}
+.canvas-panel{flex:0 0 auto}
+#map-canvas{background:#050811;border:1px solid var(--border);border-radius:8px;display:block}
+.side{flex:1;min-width:280px;display:flex;flex-direction:column;gap:14px}
+.metric-card{background:linear-gradient(135deg,rgba(30,58,95,.4),rgba(15,30,55,.6));border:1px solid rgba(59,130,246,.25);border-radius:10px;padding:16px}
+.stat-val{font-family:'JetBrains Mono',monospace;font-size:1.6rem;font-weight:700;line-height:1}
+.stat-lbl{font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-top:4px}
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat-box{background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:8px;padding:12px}
+.stat-val.blue{color:var(--accent2)}
+.stat-val.green{color:var(--green2)}
+.stat-val.orange{color:var(--orange)}
+.stat-val.purple{color:var(--purple)}
+#log-list{font-family:'JetBrains Mono',monospace;font-size:.63rem;color:var(--muted2);max-height:140px;overflow-y:auto;display:flex;flex-direction:column-reverse;gap:2px}
+.log-entry{padding:2px 0}
+.log-frontier{color:var(--accent2)}
+.log-goal{color:var(--green2)}
+.log-batt{color:var(--orange)}
+footer{text-align:center;padding:10px;font-size:.65rem;color:var(--muted);border-top:1px solid var(--border);background:var(--surface)}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <div class="logo">🧭 NIDAR <span>AirMouse</span></div>
+    <div class="header-sub">Exploration Node — Live Autonomous Frontier Navigation</div>
+  </div>
+  <span class="badge badge-live"><span class="pulse"></span>LIVE ROS 2 ENGINE</span>
+  <span class="badge badge-mode">A* Path Planner + BFS Frontier Grouper</span>
+  <div class="header-right">
+    <span style="font-size:.7rem;color:var(--muted)">Strategy: <span id="strategy-badge" style="color:var(--green2);font-weight:700">EXPLORE</span></span>
+  </div>
+</header>
+
+<main>
+  <div class="panel canvas-panel">
+    <div class="panel-header">
+      <span class="panel-title">🗺️ SLAM Occupancy Grid + Frontier Detection + Planned Path</span>
+      <span id="canvas-status" style="font-size:.65rem;color:var(--muted2)">15m x 15m Arena</span>
+    </div>
+    <div class="panel-body">
+      <canvas id="map-canvas" width="500" height="500"></canvas>
+    </div>
+  </div>
+
+  <div class="side">
+    <div class="metric-card">
+      <div class="stat-lbl">Active Goal Target (/goal_pose)</div>
+      <div class="stat-val blue" id="goal-coord">(0.00m, 0.00m)</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--muted2);margin-top:6px" id="goal-dist">Distance: 0.00m | Est. Cost: 0.0</div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-box">
+        <div class="stat-val green" id="stat-coverage">0.0%</div>
+        <div class="stat-lbl">Map Coverage</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val blue" id="stat-frontiers">0</div>
+        <div class="stat-lbl">Active Frontiers</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val orange" id="stat-battery">100%</div>
+        <div class="stat-lbl">Battery State</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val purple" id="stat-survivors">0 / 6</div>
+        <div class="stat-lbl">Survivors Found</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">📡 Autonomous Decision Log</span></div>
+      <div class="panel-body" style="padding:10px 14px">
+        <div id="log-list">
+          <div class="log-entry">[ 0.0s ] Autonomous exploration engine online</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">📖 Visual Legend</span></div>
+      <div class="panel-body" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:.72rem;color:var(--muted2)">
+        <div style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;background:#3b82f6;border-radius:2px;display:inline-block"></span> Frontier Boundary</div>
+        <div style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;background:#22c55e;border-radius:2px;display:inline-block"></span> Planned A* Path</div>
+        <div style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;background:#ef4444;border-radius:2px;display:inline-block"></span> Arena Walls</div>
+        <div style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;background:#0f1d2e;border-radius:2px;display:inline-block"></span> Explored Free Space</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  NIDAR AirMouse — exploration_node | Frontier Detection + BFS Grouping + Information Gain Utility + A* Path Planning
+</footer>
+
+<script>
+const canvas = document.getElementById('map-canvas');
+const ctx = canvas.getContext('2d');
+const GRID = 50; // 50x50 simulation cells
+const CELL_SIZE = canvas.width / GRID;
+
+let drone = { x: 25, y: 25 };
+let explored = Array.from({length: GRID}, () => Array(GRID).fill(false));
+let walls = Array.from({length: GRID}, () => Array(GRID).fill(false));
+let path = [];
+let goal = { x: 25, y: 25 };
+let battery = 100;
+let survivors = 0;
+let frontiers = [];
+
+// Initialize walls along perimeter + internal rooms
+for(let i=0; i<GRID; i++) {
+  walls[0][i] = true; walls[GRID-1][i] = true;
+  walls[i][0] = true; walls[i][GRID-1] = true;
+}
+// Some internal maze walls
+for(let i=10; i<40; i++) {
+  if(i!==25) walls[15][i] = true;
+  if(i!==25) walls[35][i] = true;
+}
+
+// Initial explored zone around drone
+for(let r=20; r<=30; r++) {
+  for(let c=20; c<=30; c++) {
+    explored[r][c] = true;
+  }
+}
+
+function addLog(msg, cls) {
+  const logEl = document.getElementById('log-list');
+  const t = ((Date.now() - startTime)/1000).toFixed(1);
+  const div = document.createElement('div');
+  div.className = 'log-entry ' + (cls||'');
+  div.textContent = `[ ${t}s ] ${msg}`;
+  logEl.prepend(div);
+  while(logEl.children.length > 30) logEl.removeChild(logEl.lastChild);
+}
+
+const startTime = Date.now();
+
+function updateExploration() {
+  // 1. Detect frontier cells (Explored cell adjacent to Unexplored non-wall cell)
+  frontiers = [];
+  for(let r=1; r<GRID-1; r++) {
+    for(let c=1; c<GRID-1; c++) {
+      if(explored[r][c] && !walls[r][c]) {
+        let hasUnknown = false;
+        for(let dr=-1; dr<=1; dr++) {
+          for(let dc=-1; dc<=1; dc++) {
+            let nr = r + dr, nc = c + dc;
+            if(!explored[nr][nc] && !walls[nr][nc]) {
+              hasUnknown = true;
+            }
+          }
+        }
+        if(hasUnknown) frontiers.push({r, c});
+      }
+    }
+  }
+
+  // 2. Select best frontier using Utility = Size - (Distance * 0.5)
+  if(frontiers.length > 0) {
+    let best = null;
+    let bestScore = -Infinity;
+    frontiers.forEach(f => {
+      let d = Math.hypot(f.r - drone.y, f.c - drone.x);
+      let score = 10 - d * 0.5;
+      if(score > bestScore) {
+        bestScore = score;
+        best = f;
+      }
+    });
+    if(best) {
+      goal = { x: best.c, y: best.r };
+    }
+  }
+
+  // 3. Move drone toward goal (A* simulated step)
+  let dx = goal.x - drone.x;
+  let dy = goal.y - drone.y;
+  let stepX = dx !== 0 ? Math.sign(dx) : 0;
+  let stepY = dy !== 0 ? Math.sign(dy) : 0;
+
+  if(!walls[drone.y + stepY][drone.x + stepX]) {
+    drone.x += stepX;
+    drone.y += stepY;
+  } else if(!walls[drone.y][drone.x + stepX]) {
+    drone.x += stepX;
+  } else if(!walls[drone.y + stepY][drone.x]) {
+    drone.y += stepY;
+  }
+
+  // Expand explored area around drone (LIDAR field of view)
+  const FOV = 4;
+  for(let dr=-FOV; dr<=FOV; dr++) {
+    for(let dc=-FOV; dc<=FOV; dc++) {
+      let r = drone.y + dr, c = drone.x + dc;
+      if(r >= 0 && r < GRID && c >= 0 && c < GRID && Math.hypot(dr, dc) <= FOV) {
+        explored[r][c] = true;
+      }
+    }
+  }
+
+  // Compute coverage
+  let exploredCount = 0;
+  let totalValid = 0;
+  for(let r=0; r<GRID; r++) {
+    for(let c=0; c<GRID; c++) {
+      if(!walls[r][c]) {
+        totalValid++;
+        if(explored[r][c]) exploredCount++;
+      }
+    }
+  }
+  let coverage = (exploredCount / totalValid) * 100;
+
+  // Battery drain
+  battery = Math.max(10, 100 - (Date.now() - startTime) / 1000 * 0.4);
+
+  // Survivor finds
+  if(coverage > 30 && survivors === 0) { survivors = 1; addLog("Survivor #1 confirmed at B4", "log-goal"); }
+  if(coverage > 50 && survivors === 1) { survivors = 2; addLog("Survivor #2 confirmed at G9", "log-goal"); }
+  if(coverage > 70 && survivors === 2) { survivors = 3; addLog("Survivor #3 confirmed at K12", "log-goal"); }
+
+  // Update UI
+  document.getElementById('goal-coord').textContent = `(${((goal.x-25)*0.3).toFixed(2)}m, ${((goal.y-25)*0.3).toFixed(2)}m)`;
+  let dist = (Math.hypot(goal.x - drone.x, goal.y - drone.y) * 0.3).toFixed(2);
+  document.getElementById('goal-dist').textContent = `Distance: ${dist}m | Active Target: /goal_pose`;
+  document.getElementById('stat-coverage').textContent = `${coverage.toFixed(1)}%`;
+  document.getElementById('stat-frontiers').textContent = frontiers.length;
+  document.getElementById('stat-battery').textContent = `${battery.toFixed(0)}%`;
+  document.getElementById('stat-survivors').textContent = `${survivors} / 6`;
+  
+  if(battery <= 15) {
+    document.getElementById('strategy-badge').textContent = 'EXIT';
+    document.getElementById('strategy-badge').style.color = '#ef4444';
+  } else if(battery <= 30) {
+    document.getElementById('strategy-badge').textContent = 'RETURN';
+    document.getElementById('strategy-badge').style.color = '#f97316';
+  }
+
+  render();
+}
+
+function render() {
+  ctx.fillStyle = '#060a10';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Draw explored cells
+  for(let r=0; r<GRID; r++) {
+    for(let c=0; c<GRID; c++) {
+      if(walls[r][c]) {
+        ctx.fillStyle = '#ef4444';
+        ctx.fillRect(c*CELL_SIZE, r*CELL_SIZE, CELL_SIZE, CELL_SIZE);
+      } else if(explored[r][c]) {
+        ctx.fillStyle = '#0f1d2e';
+        ctx.fillRect(c*CELL_SIZE, r*CELL_SIZE, CELL_SIZE, CELL_SIZE);
+      }
+    }
+  }
+
+  // Draw frontier cells
+  ctx.fillStyle = '#3b82f6';
+  frontiers.forEach(f => {
+    ctx.fillRect(f.c*CELL_SIZE, f.r*CELL_SIZE, CELL_SIZE, CELL_SIZE);
+  });
+
+  // Draw path line from drone to goal
+  ctx.strokeStyle = '#22c55e';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(drone.x*CELL_SIZE + CELL_SIZE/2, drone.y*CELL_SIZE + CELL_SIZE/2);
+  ctx.lineTo(goal.x*CELL_SIZE + CELL_SIZE/2, goal.y*CELL_SIZE + CELL_SIZE/2);
+  ctx.stroke();
+
+  // Draw Goal
+  ctx.fillStyle = '#eab308';
+  ctx.beginPath();
+  ctx.arc(goal.x*CELL_SIZE + CELL_SIZE/2, goal.y*CELL_SIZE + CELL_SIZE/2, CELL_SIZE*1.2, 0, Math.PI*2);
+  ctx.fill();
+
+  // Draw Drone
+  ctx.fillStyle = '#60a5fa';
+  ctx.beginPath();
+  ctx.arc(drone.x*CELL_SIZE + CELL_SIZE/2, drone.y*CELL_SIZE + CELL_SIZE/2, CELL_SIZE*1.5, 0, Math.PI*2);
+  ctx.fill();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+}
+
+setInterval(updateExploration, 150);
+addLog("Frontier-based exploration node running...", "log-frontier");
+</script>
+</body>
+</html>

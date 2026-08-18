@@ -1,0 +1,59 @@
+# =============================================================================
+# NIDAR AirMouse — .gitignore
+# =============================================================================
+
+# --- ROS 2 / Colcon build artifacts ---
+build/
+install/
+log/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+*.egg
+
+# --- Environment ---
+.env
+!.env.example
+env/
+venv/
+
+# --- Node.js (GCS frontend) ---
+node_modules/
+npm-debug.log*
+
+# --- IDE ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# --- Docker ---
+# Don't ignore Dockerfile or docker-compose.yml
+docker-volumes/
+
+# --- ML Models (large binary files — use Git LFS or download script) ---
+*.blob
+*.onnx
+*.tflite
+*.pt
+*.pth
+!src/backend/detection_node/models/.gitkeep
+
+# --- Datasets & Training Data ---
+human_dataset/
+**/human_dataset/
+datasets/
+*.cache
+
+
+# --- OS ---
+Thumbs.db
+Desktop.ini
+.Spotlight-V100
+.Trashes
