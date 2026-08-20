@@ -1,0 +1,48 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>fusion_node</name>
+  <version>0.1.0</version>
+  <description>
+    Fusion Node for NIDAR AirMouse.
+    Combines RGB tracker (ByteTrack) and thermal detector (YOLO11n) outputs
+    using weighted evidence fusion + EMA smoothing. Applies spatial alignment,
+    multi-frame persistence, confidence thresholding, and deduplication to
+    produce confirmed survivor detections for grid_mapper_node.
+  </description>
+  <maintainer email="team@nidar.dev">NIDAR Team</maintainer>
+  <license>MIT</license>
+
+  <!-- Build system: Python packages use ament_python -->
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <!-- Runtime ROS 2 dependencies -->
+  <depend>rclpy</depend>
+
+  <!-- Standard ROS 2 message packages -->
+  <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>builtin_interfaces</depend>
+
+  <!-- TF2 for coordinate frame transforms (camera → map frame) -->
+  <depend>tf2_ros</depend>
+  <depend>tf2_geometry_msgs</depend>
+
+  <!-- OpenCV bridge for converting ROS Image → numpy array -->
+  <depend>cv_bridge</depend>
+
+  <!-- Custom NIDAR messages: SurvivorArray (input + output) -->
+  <depend>nidar_msgs</depend>
+
+  <!-- Test dependencies -->
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

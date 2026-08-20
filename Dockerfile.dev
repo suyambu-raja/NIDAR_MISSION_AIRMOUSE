@@ -1,0 +1,21 @@
+# =============================================================================
+# Dockerfile.dev — OFFLINE build using cached ros:humble-ros-base
+# =============================================================================
+# ros:humble-ros-base already contains everything grid_mapper_node needs:
+#   colcon, rclpy, nav_msgs, geometry_msgs, sensor_msgs,
+#   tf2_ros, rosidl_default_generators, rosidl_default_runtime
+#
+# NO apt-get = NO internet needed.
+#
+# Build:  docker build -f Dockerfile.dev -t nidar-dev .
+# Run:    docker run --rm -it -v ${PWD}:/workspace nidar-dev bash
+# =============================================================================
+
+FROM ros:humble-ros-base
+
+WORKDIR /workspace
+
+# Auto-source ROS 2 on every bash session (no internet needed)
+RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc
+
+CMD ["bash"]

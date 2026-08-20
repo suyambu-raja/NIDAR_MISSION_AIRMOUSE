@@ -1,0 +1,83 @@
+# =============================================================================
+# NIDAR AirMouse — Docker Compose Configuration
+# =============================================================================
+# Services:
+#   nidar_ros  — Main ROS 2 container (all backend nodes)
+#   nidar_gcs  — GCS web dashboard (Vite + React dev server)
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # -------------------------------------------------------------------------
+  # ROS 2 Backend — runs all NIDAR nodes, MAVROS, SLAM, Nav2, rosbridge
+  # -------------------------------------------------------------------------
+  nidar_ros:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev               # Use development stage for colcon + debug tools
+    container_name: nidar_ros
+    # Enable NVIDIA container runtime for Jetson GPU acceleration
+    runtime: nvidia
+    # host networking required for DDS discovery (ROS 2 nodes on same network)
+    network_mode: host
+    # Privileged mode for USB device access (RPLIDAR, Pixhawk, OAK-D, FLIR)
+    # ⚠️ HARDWARE: For production, replace with specific --device mappings
+    privileged: true
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      # ⚠️ HARDWARE: Pixhawk connection string for MAVROS
+      - MAVROS_FCU_URL=${MAVROS_FCU_URL:-/dev/ttyACM0:921600}
+      # ⚠️ HARDWARE: RPLIDAR serial port
+      - RPLIDAR_PORT=${RPLIDAR_PORT:-/dev/ttyUSB0}
+      # ⚠️ HARDWARE: FLIR Lepton video device
+      - FLIR_DEVICE=${FLIR_DEVICE:-/dev/video0}
+    volumes:
+      # Mount source code for live development (no rebuild needed for Python)
+      - ./src:/workspace/src:rw
+      # Persist colcon build artifacts across container restarts
+      - nidar_build:/workspace/build
+      - nidar_install:/workspace/install
+      - nidar_log:/workspace/log
+    # ⚠️ HARDWARE: Map specific devices — verify these paths on your RPi4
+    devices:
+      - /dev/ttyACM0:/dev/ttyACM0   # Pixhawk 6C (USB)
+      - /dev/ttyUSB0:/dev/ttyUSB0   # RPLIDAR A2M8
+      - /dev/video0:/dev/video0     # FLIR Lepton 3.5 (PureThermal)
+      # OAK-D uses USB bulk transfer — needs privileged mode, not /dev mapping
+    command: >
+      bash -c "
+        cd /workspace &&
+        colcon build --symlink-install --parallel-workers 2 &&
+        source install/setup.bash &&
+        ros2 launch nidar_bringup nidar_bringup_launch.py
+      "
+    restart: unless-stopped
+
+  # -------------------------------------------------------------------------
+  # GCS Web Dashboard — Vite + React dev server
+  # -------------------------------------------------------------------------
+  nidar_gcs:
+    image: node:18-slim
+    container_name: nidar_gcs
+    # host networking so roslibjs can reach rosbridge on ws://localhost:9090
+    network_mode: host
+    working_dir: /app
+    volumes:
+      - ./src/frontend:/app:rw
+    command: >
+      bash -c "
+        npm install &&
+        npm run dev -- --host 0.0.0.0 --port 3000
+      "
+    restart: unless-stopped
+    depends_on:
+      - nidar_ros
+
+# Named volumes for persisting build artifacts
+volumes:
+  nidar_build:
+  nidar_install:
+  nidar_log:
