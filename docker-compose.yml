@@ -18,6 +18,8 @@ services:
       dockerfile: Dockerfile
       target: dev               # Use development stage for colcon + debug tools
     container_name: nidar_ros
+    # Enable NVIDIA container runtime for Jetson GPU acceleration
+    runtime: nvidia
     # host networking required for DDS discovery (ROS 2 nodes on same network)
     network_mode: host
     # Privileged mode for USB device access (RPLIDAR, Pixhawk, OAK-D, FLIR)

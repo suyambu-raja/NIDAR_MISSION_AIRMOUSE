@@ -30,7 +30,16 @@ slam_node  ◄──────── slam_toolbox (internal)
               ├──► fusion_node
               └──► GCS dashboard
 
-grid_mapper_node  ◄── /map, /drone_pose, /tracked_survivors
+fusion_node  ◄── /tracked_survivors, /thermal_detections, /drone_pose, /camera_frame
+    │
+    ├──── /confirmed_survivors  (nidar_msgs/SurvivorArray,  ~5 Hz)
+    │         ├──► grid_mapper_node
+    │         └──► GCS dashboard
+    │
+    └──── /fusion_status        (std_msgs/String JSON,       ~2 Hz)
+              └──► GCS dashboard
+
+grid_mapper_node  ◄── /map, /drone_pose, /confirmed_survivors
     │
     ├──── /survivor_grid_locations  (nidar_msgs/SurvivorGridArray, ~2 Hz)
     │         ├──► fusion_node
@@ -131,16 +140,114 @@ If you need covariance, subscribe to slam_toolbox's `/pose` topic (PoseWithCovar
 |-------------|---------------------------------------------------------|
 | **Type**    | `nidar_msgs/SurvivorArray`                              |
 | **Publisher** | `tracker_node`                                        |
-| **Subscribers** | `grid_mapper_node`                                |
+| **Subscribers** | `fusion_node`                                     |
 | **Frame**   | `map`                                                   |
 | **Rate**    | Event-driven — published when a new confirmed survivor is detected |
 | **QoS**     | Reliable, Volatile                                      |
 
 **Field notes:**
-- `detections[]`: array of `SurvivorDetection` — only `is_confirmed=True` entries are processed by `grid_mapper_node`
+- `detections[]`: array of `SurvivorDetection` — consumed by `fusion_node` for RGB evidence
 - `position.x` / `.y`: survivor position in SLAM map frame (metres)
 - `confidence`: detection confidence from tracker (0.0–1.0)
 - `survivor_id`: tracker-assigned ID (-1 if not yet tracked)
+
+---
+
+### `/thermal_detections`
+
+| Field       | Value                                                   |
+|-------------|---------------------------------------------------------|
+| **Type**    | `nidar_msgs/SurvivorArray`                              |
+| **Publisher** | `thermal_node` (YOLO11n)                              |
+| **Subscribers** | `fusion_node`                                     |
+| **Frame**   | `map`                                                   |
+| **Rate**    | ~8 Hz                                                   |
+| **QoS**     | Reliable, Volatile                                      |
+
+**Field notes:**
+- `detections[]`: array of `SurvivorDetection` from thermal YOLO11n inference
+- `detection_source`: always `"thermal"`
+- `position.x` / `.y`: world position if available, else `(0, 0)` and `fusion_node` projects from bbox + depth
+- `confidence`: thermal detection confidence (0.0–1.0)
+
+**Thermal detection strategy:**
+```
+thermal = parallel/conditional channel
+        = primary in DEGRADED visibility
+        = secondary in NORMAL visibility
+        = NOT a confirmation gate
+```
+
+---
+
+### `/camera_frame`
+
+| Field       | Value                                                   |
+|-------------|---------------------------------------------------------|
+| **Type**    | `sensor_msgs/Image`                                     |
+| **Publisher** | OAK-D camera driver                                  |
+| **Subscribers** | `fusion_node`                                     |
+| **Frame**   | `camera_link`                                           |
+| **Rate**    | ~30 Hz                                                  |
+| **QoS**     | Best-effort, Volatile                                   |
+
+**Field notes:**
+- Encoding: `rgb8` or `bgr8` (3-channel colour) or `mono8` (grayscale)
+- Used by `fusion_node` for **visibility estimation only** (average brightness)
+- Not stored or forwarded — only brightness metric is extracted
+
+---
+
+### `/confirmed_survivors`
+
+| Field       | Value                                                   |
+|-------------|---------------------------------------------------------|
+| **Type**    | `nidar_msgs/SurvivorArray`                              |
+| **Publisher** | `fusion_node`                                         |
+| **Subscribers** | `grid_mapper_node`, GCS dashboard                 |
+| **Frame**   | `map`                                                   |
+| **Rate**    | ~5 Hz                                                   |
+| **QoS**     | Reliable, Volatile                                      |
+
+**Field notes:**
+- `detections[]`: array of `SurvivorDetection` — all confirmed survivors found so far
+- `is_confirmed`: always `True` (only confirmed detections are published here)
+- `detection_source`: `"rgb"`, `"thermal"`, or `"fused"` (indicates which sensor(s) contributed)
+- `confidence`: fused confidence after weighted evidence fusion + EMA smoothing
+- `survivor_id`: unique ID assigned by fusion deduplicator (1-based)
+- Maximum 6 entries (competition limit — enforced by `fusion_node`)
+
+---
+
+### `/fusion_status`
+
+| Field       | Value                                                   |
+|-------------|---------------------------------------------------------|
+| **Type**    | `std_msgs/String` (JSON payload)                        |
+| **Publisher** | `fusion_node`                                         |
+| **Subscriber** | GCS dashboard                                       |
+| **Frame**   | N/A                                                     |
+| **Rate**    | ~2 Hz                                                   |
+| **QoS**     | Reliable, Volatile                                      |
+
+**JSON payload schema:**
+```json
+{
+  "visibility_state":     "NORMAL",
+  "active_detector":      "Both",
+  "brightness":           142.5,
+  "pending_rgb":          3,
+  "pending_thermal":      1,
+  "tracked_positions":    2,
+  "confirmed_survivors":  1,
+  "max_survivors":        6,
+  "confidence_threshold": 0.65,
+  "pose_available":       true
+}
+```
+
+**Visibility state values:** `NORMAL` (brightness > 50), `DEGRADED` (brightness ≤ 50)
+**Active detector values:** `RGB`, `Thermal`, `Both`, `None`
 
 ---
 
@@ -313,9 +420,10 @@ The mock publishes:
 |-------------------|---------------------------------------------------------|-----------------------------------------------------|
 | `rplidar_ros`     | `/scan`                                                 | —                                                   |
 | `slam_node`       | `/map`, `/drone_pose`                                   | `/scan`, `/map` (from slam_toolbox)                 |
-| `grid_mapper_node`| `/survivor_grid_locations`, `/grid_map_overlay`         | `/map`, `/drone_pose`, `/tracked_survivors`          |
-| `tracker_node`    | `/tracked_survivors`                                    | *(TBD — OAK-D detections)*                          |
-| `fusion_node`     | *(TBD)*                                                 | `/drone_pose`, `/survivor_grid_locations`           |
+| `grid_mapper_node`| `/survivor_grid_locations`, `/grid_map_overlay`         | `/map`, `/drone_pose`, `/confirmed_survivors`        |
+| `tracker_node`    | `/tracked_survivors`                                    | `/detected_survivors`                                |
+| `thermal_node`    | `/thermal_detections`                                   | *(thermal camera driver)*                            |
+| `fusion_node`     | `/confirmed_survivors`, `/fusion_status`                | `/tracked_survivors`, `/thermal_detections`, `/drone_pose`, `/camera_frame` |
 | `exploration_node`| `/goal_pose`, `/exploration_status`, `/planned_path`    | `/map`, `/drone_pose`, `/survivor_grid_locations`, `/battery_status` |
 | GCS dashboard     | —                                                       | `/map`, `/drone_pose`, `/survivor_grid_locations`, `/grid_map_overlay`, `/exploration_status`, `/planned_path` |
 
@@ -327,6 +435,7 @@ The mock publishes:
 |---------|------------|-----------------------------------------|-------------|
 | 0.1.0   | 2026-08-16 | Initial interface contract              | NIDAR Team  |
 | 0.2.0   | 2026-08-17 | Add `/survivor_grid_locations`, `/grid_map_overlay`, `/tracked_survivors`; update dependency graph | NIDAR Team  |
+| 0.4.0   | 2026-08-19 | Add `/confirmed_survivors`, `/fusion_status`, `/thermal_detections`, `/camera_frame`; promote `fusion_node` from TBD to active; add `thermal_node` to dependency graph; thermal strategy documentation | NIDAR Team  |
 | 0.3.0   | 2026-08-17 | Add `/goal_pose`, `/exploration_status`, `/planned_path`; promote `exploration_node` from future to active; update topic map and dependency graph | NIDAR Team  |
 
 > [!NOTE]

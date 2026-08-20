@@ -51,9 +51,33 @@ human_dataset/
 datasets/
 *.cache
 
+# --- Binaries & Archives ---
+*.exe
+*.zip
+*.tar.gz
+*.tgz
+tools/
+
+# --- Testing Videos & Test Footage ---
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.wmv
+*.flv
+*.webm
+*.m4v
+*.gif
+test_footage/
+**/test_footage/
+test_data/
+**/test_data/
+runs/
+**/runs/
 
 # --- OS ---
 Thumbs.db
 Desktop.ini
 .Spotlight-V100
 .Trashes
+
