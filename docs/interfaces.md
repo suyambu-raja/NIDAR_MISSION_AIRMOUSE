@@ -59,6 +59,20 @@ exploration_node  ◄── /map, /drone_pose, /survivor_grid_locations, /batter
     │
     └──── /planned_path        (nav_msgs/Path,             ~1 Hz)
               └──► GCS dashboard
+
+mavros_bridge  ◄── /goal_pose, /cmd_vel, MAVLink (SITL / Pixhawk 6C)
+    │
+    ├──── /battery_status      (sensor_msgs/BatteryState,   ~1 Hz)
+    │         ├──► exploration_node (battery_monitor)
+    │         └──► GCS dashboard
+    │
+    ├──── /drone_pose          (geometry_msgs/PoseStamped,  ~10 Hz, frame: map)
+    │         ├──► grid_mapper_node
+    │         ├──► exploration_node
+    │         └──► fusion_node
+    │
+    └──── /mavros_bridge/state (std_msgs/String JSON,       ~2 Hz)
+              └──► GCS dashboard
 ```
 
 ---
@@ -383,6 +397,84 @@ Example: survivor at map (6.3m, 4.7m) → grid box "F4"
 
 ---
 
+### `/battery_status`
+
+| Field       | Value                                                   |
+|-------------|---------------------------------------------------------|
+| **Type**    | `sensor_msgs/BatteryState`                              |
+| **Publisher** | `mavros_bridge` (relayed from `/mavros/battery`)      |
+| **Subscribers** | `exploration_node` (`battery_monitor`), GCS dashboard |
+| **Frame**   | `base_link`                                             |
+| **Rate**    | ~1 Hz                                                   |
+| **QoS**     | Best-effort, Volatile                                   |
+
+**Field notes:**
+- `percentage`: float [0.0, 1.0] representing battery charge level (e.g. `0.65` = 65%)
+- `voltage`: current battery pack voltage (e.g. `11.4` V)
+- `current`: instantaneous current draw in amperes
+- Consumed directly by `exploration_node`'s `battery_monitor.py` to trigger `EXPLORE` (>30%), `RETURN` (15-30%), or `EXIT` (<15%) strategies
+
+---
+
+### `/mavros_bridge/state`
+
+| Field       | Value                                                   |
+|-------------|---------------------------------------------------------|
+| **Type**    | `std_msgs/String` (JSON payload)                        |
+| **Publisher** | `mavros_bridge`                                       |
+| **Subscriber** | GCS dashboard                                       |
+| **Frame**   | N/A                                                     |
+| **Rate**    | ~2 Hz                                                   |
+| **QoS**     | Reliable, Transient-Local                               |
+
+**JSON payload schema:**
+```json
+{
+  "connected":       true,
+  "armed":           true,
+  "mode":            "GUIDED",
+  "guided":          true,
+  "in_air":          true,
+  "battery_pct":     78.4,
+  "battery_voltage": 11.8,
+  "altitude":        2.5,
+  "position":        [2.1, 4.5, 2.5],
+  "goal":            [5.0, 3.0],
+  "fcu_url":         "udp://127.0.0.1:14550@"
+}
+```
+
+---
+
+### `/cmd_vel`
+
+| Field       | Value                                                   |
+|-------------|---------------------------------------------------------|
+| **Type**    | `geometry_msgs/Twist`                                   |
+| **Publisher** | Manual teleop / GCS control / emergency override        |
+| **Subscriber** | `mavros_bridge`                                      |
+| **Frame**   | `base_link`                                             |
+| **Rate**    | ~10 Hz (when active)                                    |
+| **QoS**     | Best-effort, Volatile                                   |
+
+---
+
+## Service Reference (`mavros_bridge`)
+
+| Service Name         | Type                   | Purpose                                                |
+|----------------------|------------------------|--------------------------------------------------------|
+| `/arm`               | `std_srvs/srv/SetBool` | Arm (`data: true`) or disarm (`data: false`) the drone |
+| `/takeoff`           | `std_srvs/srv/Trigger` | Switch to GUIDED mode, arm, and takeoff to cruise alt  |
+| `/land`              | `std_srvs/srv/Trigger` | Switch to LAND mode and land                           |
+| `/rtl`               | `std_srvs/srv/Trigger` | Switch to RTL (Return To Launch) mode                  |
+| `/set_mode_guided`   | `std_srvs/srv/Trigger` | Switch flight mode to `GUIDED`                         |
+| `/set_mode_rtl`      | `std_srvs/srv/Trigger` | Switch flight mode to `RTL`                            |
+| `/set_mode_land`     | `std_srvs/srv/Trigger` | Switch flight mode to `LAND`                           |
+| `/set_mode_loiter`   | `std_srvs/srv/Trigger` | Switch flight mode to `LOITER`                         |
+| `/set_mode_stabilize`| `std_srvs/srv/Trigger` | Switch flight mode to `STABILIZE`                      |
+
+---
+
 ## TF Tree
 
 ```
@@ -425,7 +517,8 @@ The mock publishes:
 | `thermal_node`    | `/thermal_detections`                                   | *(thermal camera driver)*                            |
 | `fusion_node`     | `/confirmed_survivors`, `/fusion_status`                | `/tracked_survivors`, `/thermal_detections`, `/drone_pose`, `/camera_frame` |
 | `exploration_node`| `/goal_pose`, `/exploration_status`, `/planned_path`    | `/map`, `/drone_pose`, `/survivor_grid_locations`, `/battery_status` |
-| GCS dashboard     | —                                                       | `/map`, `/drone_pose`, `/survivor_grid_locations`, `/grid_map_overlay`, `/exploration_status`, `/planned_path` |
+| `mavros_bridge`   | `/drone_pose`, `/battery_status`, `/mavros_bridge/state`, `/mavros/setpoint_position/local`, `/mavros/setpoint_velocity/cmd_vel_unstamped` | `/goal_pose`, `/cmd_vel`, `/mavros/state`, `/mavros/battery`, `/mavros/local_position/pose`, `/mavros/local_position/velocity_local` |
+| GCS dashboard     | `/cmd_vel` (teleop)                                     | `/map`, `/drone_pose`, `/survivor_grid_locations`, `/grid_map_overlay`, `/exploration_status`, `/planned_path`, `/mavros_bridge/state` |
 
 ---
 
@@ -435,8 +528,9 @@ The mock publishes:
 |---------|------------|-----------------------------------------|-------------|
 | 0.1.0   | 2026-08-16 | Initial interface contract              | NIDAR Team  |
 | 0.2.0   | 2026-08-17 | Add `/survivor_grid_locations`, `/grid_map_overlay`, `/tracked_survivors`; update dependency graph | NIDAR Team  |
-| 0.4.0   | 2026-08-19 | Add `/confirmed_survivors`, `/fusion_status`, `/thermal_detections`, `/camera_frame`; promote `fusion_node` from TBD to active; add `thermal_node` to dependency graph; thermal strategy documentation | NIDAR Team  |
 | 0.3.0   | 2026-08-17 | Add `/goal_pose`, `/exploration_status`, `/planned_path`; promote `exploration_node` from future to active; update topic map and dependency graph | NIDAR Team  |
+| 0.4.0   | 2026-08-19 | Add `/confirmed_survivors`, `/fusion_status`, `/thermal_detections`, `/camera_frame`; promote `fusion_node` from TBD to active; add `thermal_node` to dependency graph; thermal strategy documentation | NIDAR Team  |
+| 0.5.0   | 2026-08-20 | Add `mavros_bridge` topic (`/battery_status`, `/mavros_bridge/state`, `/cmd_vel`) and service contracts (`/arm`, `/takeoff`, `/land`, `/rtl`, `/set_mode_*`); update dependency graph | NIDAR Team  |
 
 > [!NOTE]
 > Update the version row whenever a topic name, type, frame, or QoS changes.
