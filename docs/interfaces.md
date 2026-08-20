@@ -87,6 +87,11 @@ failsafe_node  ◄── /battery_status, /drone_pose, /map, /mavros_bridge/stat
     │
     └──── /goal_pose             (geometry_msgs/PoseStamped, on trigger)
               └──► mavros_bridge
+
+corridor_classifier  ◄── /map
+    │
+    └──── /map_regions          (std_msgs/String JSON,      ~1 Hz)
+              └──► GCS dashboard (MapView.jsx overlay)
 ```
 
 ---
@@ -520,6 +525,53 @@ Example: survivor at map (6.3m, 4.7m) → grid box "F4"
 
 ---
 
+### `/map_regions`
+
+| Field       | Value                                                   |
+|-------------|---------------------------------------------------------|
+| **Type**    | `std_msgs/String` (JSON payload)                        |
+| **Publisher** | `corridor_classifier`                                 |
+| **Subscriber** | GCS dashboard (`MapView.jsx`)                           |
+| **Frame**   | `map`                                                   |
+| **Rate**    | ~1 Hz                                                   |
+| **QoS**     | Reliable, Transient-Local                               |
+
+**JSON payload schema:**
+```json
+{
+  "timestamp": 1724140000.0,
+  "total_regions": 3,
+  "rooms_count": 2,
+  "corridors_count": 1,
+  "junctions_count": 0,
+  "unclassified_count": 0,
+  "regions": [
+    {
+      "region_id": 1,
+      "type": "room",
+      "label": "Room 1",
+      "confidence": 0.92,
+      "grid_boxes": ["B2", "B3", "C2", "C3"],
+      "centroid": [2.0, 2.0],
+      "bounds": {
+        "min_x": 1.0,
+        "max_x": 3.0,
+        "min_y": 1.0,
+        "max_y": 3.0,
+        "width": 2.0,
+        "length": 2.0
+      },
+      "area_sqm": 4.0,
+      "aspect_ratio": 1.0,
+      "fill_ratio": 1.0,
+      "cell_count": 400
+    }
+  ]
+}
+```
+
+---
+
 ## Service Reference (`mavros_bridge` & `failsafe_node`)
 
 | Service Name         | Type                   | Hosted By         | Purpose                                                |
@@ -581,8 +633,9 @@ The mock publishes:
 | `fusion_node`     | `/confirmed_survivors`, `/fusion_status`                | `/tracked_survivors`, `/thermal_detections`, `/drone_pose`, `/camera_frame` |
 | `exploration_node`| `/goal_pose`, `/exploration_status`, `/planned_path`    | `/map`, `/drone_pose`, `/survivor_grid_locations`, `/battery_status` |
 | `failsafe_node`   | `/failsafe/status`, `/failsafe/planned_path`, `/goal_pose` | `/battery_status`, `/drone_pose`, `/map`, `/mavros_bridge/state` |
+| `corridor_classifier` | `/map_regions`                                       | `/map`                                              |
 | `mavros_bridge`   | `/drone_pose`, `/battery_status`, `/mavros_bridge/state`, `/mavros/setpoint_position/local`, `/mavros/setpoint_velocity/cmd_vel_unstamped` | `/goal_pose`, `/cmd_vel`, `/mavros/state`, `/mavros/battery`, `/mavros/local_position/pose`, `/mavros/local_position/velocity_local` |
-| GCS dashboard     | `/cmd_vel` (teleop)                                     | `/map`, `/drone_pose`, `/survivor_grid_locations`, `/grid_map_overlay`, `/exploration_status`, `/planned_path`, `/mavros_bridge/state`, `/failsafe/status`, `/failsafe/planned_path` |
+| GCS dashboard     | `/cmd_vel` (teleop)                                     | `/map`, `/drone_pose`, `/survivor_grid_locations`, `/grid_map_overlay`, `/exploration_status`, `/planned_path`, `/mavros_bridge/state`, `/failsafe/status`, `/failsafe/planned_path`, `/map_regions` |
 
 ---
 
@@ -596,6 +649,7 @@ The mock publishes:
 | 0.4.0   | 2026-08-19 | Add `/confirmed_survivors`, `/fusion_status`, `/thermal_detections`, `/camera_frame`; promote `fusion_node` from TBD to active; add `thermal_node` to dependency graph; thermal strategy documentation | NIDAR Team  |
 | 0.5.0   | 2026-08-20 | Add `mavros_bridge` topic (`/battery_status`, `/mavros_bridge/state`, `/cmd_vel`) and service contracts (`/arm`, `/takeoff`, `/land`, `/rtl`, `/set_mode_*`); update dependency graph | NIDAR Team  |
 | 0.6.0   | 2026-08-20 | Add `failsafe_node` topic (`/failsafe/status`, `/failsafe/planned_path`) and service contracts (`/failsafe/abort`, `/failsafe/reset`); update dependency graph | NIDAR Team  |
+| 0.7.0   | 2026-08-20 | Add `corridor_classifier` topic (`/map_regions`); update dependency graph and topic map | NIDAR Team  |
 
 > [!NOTE]
 > Update the version row whenever a topic name, type, frame, or QoS changes.
