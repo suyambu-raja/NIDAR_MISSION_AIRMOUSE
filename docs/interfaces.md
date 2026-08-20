@@ -64,15 +64,29 @@ mavros_bridge  ◄── /goal_pose, /cmd_vel, MAVLink (SITL / Pixhawk 6C)
     │
     ├──── /battery_status      (sensor_msgs/BatteryState,   ~1 Hz)
     │         ├──► exploration_node (battery_monitor)
+    │         ├──► failsafe_node
     │         └──► GCS dashboard
     │
     ├──── /drone_pose          (geometry_msgs/PoseStamped,  ~10 Hz, frame: map)
     │         ├──► grid_mapper_node
     │         ├──► exploration_node
+    │         ├──► failsafe_node
     │         └──► fusion_node
     │
     └──── /mavros_bridge/state (std_msgs/String JSON,       ~2 Hz)
+              ├──► failsafe_node
               └──► GCS dashboard
+
+failsafe_node  ◄── /battery_status, /drone_pose, /map, /mavros_bridge/state
+    │
+    ├──── /failsafe/status       (std_msgs/String JSON,      ~5 Hz)
+    │         └──► GCS dashboard
+    │
+    ├──── /failsafe/planned_path (nav_msgs/Path,             ~1 Hz)
+    │         └──► GCS dashboard
+    │
+    └──── /goal_pose             (geometry_msgs/PoseStamped, on trigger)
+              └──► mavros_bridge
 ```
 
 ---
@@ -459,19 +473,68 @@ Example: survivor at map (6.3m, 4.7m) → grid box "F4"
 
 ---
 
-## Service Reference (`mavros_bridge`)
+### `/failsafe/status`
 
-| Service Name         | Type                   | Purpose                                                |
-|----------------------|------------------------|--------------------------------------------------------|
-| `/arm`               | `std_srvs/srv/SetBool` | Arm (`data: true`) or disarm (`data: false`) the drone |
-| `/takeoff`           | `std_srvs/srv/Trigger` | Switch to GUIDED mode, arm, and takeoff to cruise alt  |
-| `/land`              | `std_srvs/srv/Trigger` | Switch to LAND mode and land                           |
-| `/rtl`               | `std_srvs/srv/Trigger` | Switch to RTL (Return To Launch) mode                  |
-| `/set_mode_guided`   | `std_srvs/srv/Trigger` | Switch flight mode to `GUIDED`                         |
-| `/set_mode_rtl`      | `std_srvs/srv/Trigger` | Switch flight mode to `RTL`                            |
-| `/set_mode_land`     | `std_srvs/srv/Trigger` | Switch flight mode to `LAND`                           |
-| `/set_mode_loiter`   | `std_srvs/srv/Trigger` | Switch flight mode to `LOITER`                         |
-| `/set_mode_stabilize`| `std_srvs/srv/Trigger` | Switch flight mode to `STABILIZE`                      |
+| Field       | Value                                                   |
+|-------------|---------------------------------------------------------|
+| **Type**    | `std_msgs/String` (JSON payload)                        |
+| **Publisher** | `failsafe_node`                                       |
+| **Subscriber** | GCS dashboard                                       |
+| **Frame**   | N/A                                                     |
+| **Rate**    | ~5 Hz                                                   |
+| **QoS**     | Reliable, Transient-Local                               |
+
+**JSON payload schema:**
+```json
+{
+  "active": true,
+  "triggered": true,
+  "state": "NAVIGATING_HOME",
+  "reason": "LOW_BATTERY",
+  "detail": "Battery level 12.4% is below threshold 15.0% (Voltage: 11.20V)",
+  "battery_pct": 12.4,
+  "battery_voltage": 11.20,
+  "battery_threshold_pct": 15.0,
+  "link_age_sec": 0.1,
+  "link_timeout_sec": 3.0,
+  "current_pos": [4.5, 3.2, 2.5],
+  "home_pos": [0.0, 0.0],
+  "distance_to_home": 5.52,
+  "waypoints_remaining": 8,
+  "timestamp": 1724140000.0
+}
+```
+
+---
+
+### `/failsafe/planned_path`
+
+| Field       | Value                                                   |
+|-------------|---------------------------------------------------------|
+| **Type**    | `nav_msgs/Path`                                         |
+| **Publisher** | `failsafe_node` (A* obstacle-aware RTL route)          |
+| **Subscriber** | GCS dashboard                                       |
+| **Frame**   | `map`                                                   |
+| **Rate**    | ~1 Hz (on trigger / path update)                        |
+| **QoS**     | Reliable, Transient-Local                               |
+
+---
+
+## Service Reference (`mavros_bridge` & `failsafe_node`)
+
+| Service Name         | Type                   | Hosted By         | Purpose                                                |
+|----------------------|------------------------|-------------------|--------------------------------------------------------|
+| `/arm`               | `std_srvs/srv/SetBool` | `mavros_bridge`   | Arm (`data: true`) or disarm (`data: false`) the drone |
+| `/takeoff`           | `std_srvs/srv/Trigger` | `mavros_bridge`   | Switch to GUIDED mode, arm, and takeoff to cruise alt  |
+| `/land`              | `std_srvs/srv/Trigger` | `mavros_bridge`   | Switch to LAND mode and land                           |
+| `/rtl`               | `std_srvs/srv/Trigger` | `mavros_bridge`   | Switch to RTL (Return To Launch) mode                  |
+| `/set_mode_guided`   | `std_srvs/srv/Trigger` | `mavros_bridge`   | Switch flight mode to `GUIDED`                         |
+| `/set_mode_rtl`      | `std_srvs/srv/Trigger` | `mavros_bridge`   | Switch flight mode to `RTL`                            |
+| `/set_mode_land`     | `std_srvs/srv/Trigger` | `mavros_bridge`   | Switch flight mode to `LAND`                           |
+| `/set_mode_loiter`   | `std_srvs/srv/Trigger` | `mavros_bridge`   | Switch flight mode to `LOITER`                         |
+| `/set_mode_stabilize`| `std_srvs/srv/Trigger` | `mavros_bridge`   | Switch flight mode to `STABILIZE`                      |
+| `/failsafe/abort`    | `std_srvs/srv/Trigger` | `failsafe_node`   | Manual operator emergency abort -> triggers A* RTL     |
+| `/failsafe/reset`    | `std_srvs/srv/Trigger` | `failsafe_node`   | Reset failsafe supervisor state to NORMAL              |
 
 ---
 
@@ -517,8 +580,9 @@ The mock publishes:
 | `thermal_node`    | `/thermal_detections`                                   | *(thermal camera driver)*                            |
 | `fusion_node`     | `/confirmed_survivors`, `/fusion_status`                | `/tracked_survivors`, `/thermal_detections`, `/drone_pose`, `/camera_frame` |
 | `exploration_node`| `/goal_pose`, `/exploration_status`, `/planned_path`    | `/map`, `/drone_pose`, `/survivor_grid_locations`, `/battery_status` |
+| `failsafe_node`   | `/failsafe/status`, `/failsafe/planned_path`, `/goal_pose` | `/battery_status`, `/drone_pose`, `/map`, `/mavros_bridge/state` |
 | `mavros_bridge`   | `/drone_pose`, `/battery_status`, `/mavros_bridge/state`, `/mavros/setpoint_position/local`, `/mavros/setpoint_velocity/cmd_vel_unstamped` | `/goal_pose`, `/cmd_vel`, `/mavros/state`, `/mavros/battery`, `/mavros/local_position/pose`, `/mavros/local_position/velocity_local` |
-| GCS dashboard     | `/cmd_vel` (teleop)                                     | `/map`, `/drone_pose`, `/survivor_grid_locations`, `/grid_map_overlay`, `/exploration_status`, `/planned_path`, `/mavros_bridge/state` |
+| GCS dashboard     | `/cmd_vel` (teleop)                                     | `/map`, `/drone_pose`, `/survivor_grid_locations`, `/grid_map_overlay`, `/exploration_status`, `/planned_path`, `/mavros_bridge/state`, `/failsafe/status`, `/failsafe/planned_path` |
 
 ---
 
@@ -531,6 +595,7 @@ The mock publishes:
 | 0.3.0   | 2026-08-17 | Add `/goal_pose`, `/exploration_status`, `/planned_path`; promote `exploration_node` from future to active; update topic map and dependency graph | NIDAR Team  |
 | 0.4.0   | 2026-08-19 | Add `/confirmed_survivors`, `/fusion_status`, `/thermal_detections`, `/camera_frame`; promote `fusion_node` from TBD to active; add `thermal_node` to dependency graph; thermal strategy documentation | NIDAR Team  |
 | 0.5.0   | 2026-08-20 | Add `mavros_bridge` topic (`/battery_status`, `/mavros_bridge/state`, `/cmd_vel`) and service contracts (`/arm`, `/takeoff`, `/land`, `/rtl`, `/set_mode_*`); update dependency graph | NIDAR Team  |
+| 0.6.0   | 2026-08-20 | Add `failsafe_node` topic (`/failsafe/status`, `/failsafe/planned_path`) and service contracts (`/failsafe/abort`, `/failsafe/reset`); update dependency graph | NIDAR Team  |
 
 > [!NOTE]
 > Update the version row whenever a topic name, type, frame, or QoS changes.
