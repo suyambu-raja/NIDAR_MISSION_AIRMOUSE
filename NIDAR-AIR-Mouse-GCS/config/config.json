@@ -1,0 +1,45 @@
+{
+  "general": {
+    "app_name": "NIDAR AirMouse GCS",
+    "callsign": "AIRMOUSE-ALPHA",
+    "version": "1.0.0",
+    "mode": "SIMULATION"
+  },
+  "communication": {
+    "mavlink_connection": "udp:127.0.0.1:14550",
+    "mavlink_baud": 57600,
+    "telemetry_rate_hz": 10,
+    "companion_pi_ip": "192.168.1.50",
+    "companion_pi_port": 5555,
+    "auto_reconnect": true
+  },
+  "map": {
+    "grid_width_meters": 20.0,
+    "grid_height_meters": 20.0,
+    "cell_size_meters": 2.5,
+    "grid_origin_x": 0.0,
+    "grid_origin_y": 0.0,
+    "resolution_meters_per_pixel": 0.05,
+    "grid_cols": 8,
+    "grid_rows": 8
+  },
+  "safety": {
+    "battery_warning_percent": 20.0,
+    "battery_critical_percent": 10.0,
+    "telemetry_timeout_seconds": 2.0,
+    "map_timeout_seconds": 3.0,
+    "video_timeout_seconds": 2.0,
+    "max_mission_time_seconds": 600
+  },
+  "video": {
+    "source": "http://100.110.233.117:8080/video",
+    "fps": 30,
+    "width": 640,
+    "height": 480
+  },
+  "simulation": {
+    "drone_speed_mps": 0.7,
+    "battery_drain_rate_percent_per_min": 3.5,
+    "noise_enabled": true
+  }
+}

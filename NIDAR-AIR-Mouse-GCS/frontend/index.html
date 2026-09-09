@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NIDAR AirMouse GCS - Autonomous Indoor Search & Mapping</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="app-container">
+    
+    <!-- 1. TOP HEADER BAR -->
+    <header id="header-bar">
+      <div class="header-left">
+        <div class="brand-logo">🛸</div>
+        <div class="brand-titles">
+          <div class="main-title">NIDAR AIRMOUSE GCS</div>
+          <div class="sub-title">GPS-DENIED AUTONOMOUS SEARCH & MAPPING</div>
+        </div>
+      </div>
+
+      <div class="header-center">
+        <div class="status-group">
+          <span class="label">WS LINK:</span>
+          <span id="ws-badge" class="badge badge-connected">CONNECTED</span>
+        </div>
+        <div class="status-group">
+          <span class="label">RADIO RF:</span>
+          <span id="radio-badge" class="badge badge-rf-good">RF: GOOD (-64.6 dBm)</span>
+        </div>
+        <div class="status-group">
+          <span class="label">MISSION:</span>
+          <span id="mission-badge" class="badge badge-ready">READY</span>
+        </div>
+        <div class="status-group">
+          <span class="label">FLIGHT:</span>
+          <span id="flight-mode-badge" class="badge badge-disarmed">DISARMED</span>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <!-- Battery Gauge -->
+        <div class="battery-container">
+          <span class="batt-icon">🔋</span>
+          <div class="battery-bar-bg">
+            <div id="battery-bar-fill" style="width: 98%;"></div>
+          </div>
+          <span id="battery-text">98% (16.6V)</span>
+        </div>
+
+        <!-- Mission Elapsed Clock -->
+        <div class="timer-container">
+          <span class="timer-icon">⏱️</span>
+          <span id="mission-timer">00:00</span>
+        </div>
+
+        <!-- Connection Toggle Button -->
+        <button id="btn-toggle-connect" class="btn btn-connect">DISCONNECT</button>
+      </div>
+    </header>
+
+    <!-- 2. MAIN WORKSPACE GRID -->
+    <main id="main-workspace">
+      
+      <!-- LEFT / CENTER COLUMN: SLAM Map on Left + Large RGB Camera on Right -->
+      <section id="map-section" class="panel main-split-panel">
+        <div class="panel-header">
+          <span class="panel-title">🗺️ AUTONOMOUS 2D OCCUPANCY GRID & LOCALISATION MAP</span>
+          <div class="panel-header-actions">
+            <div class="slam-mode-select-wrapper" title="Select SLAM Mapping Mode">
+              <label for="slam-mode-select" class="mode-select-label">MODE:</label>
+              <div class="custom-select-box">
+                <select id="slam-mode-select" class="tactical-select-input" aria-label="Select SLAM Mode">
+                  <option value="SIMULATION">🎮 Simulation SLAM (Raycasting)</option>
+                  <option value="REALTIME">📡 Real-Time SLAM (Live LiDAR / Pi)</option>
+                </select>
+                <span class="custom-select-arrow">▾</span>
+              </div>
+              <span id="slam-mode-status-tag" class="mode-status-tag tag-sim">🎮 SIMULATION ACTIVE</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="main-split-container">
+          <!-- 1. Left Sub-panel: 2D Interactive SLAM Canvas -->
+          <div id="map-canvas-wrapper" class="split-map-pane">
+            <canvas id="map-canvas"></canvas>
+            
+            <!-- Map Floating Controls -->
+            <div class="map-overlay-controls">
+              <button id="btn-map-fit" class="map-ctrl-btn" title="Fit to Arena">Fit Map</button>
+              <button id="btn-map-zoom-in" class="map-ctrl-btn" title="Zoom In">➕</button>
+              <button id="btn-map-zoom-out" class="map-ctrl-btn" title="Zoom Out">➖</button>
+              <label class="map-ctrl-toggle">
+                <input type="checkbox" id="chk-follow-drone"> Follow Drone
+              </label>
+              <label class="map-ctrl-toggle">
+                <input type="checkbox" id="chk-show-grid" checked> Grid (A1-H8)
+              </label>
+              <label class="map-ctrl-toggle">
+                <input type="checkbox" id="chk-show-trail" checked> Flight Trail
+              </label>
+            </div>
+
+            <!-- Compass Indicator -->
+            <div class="map-compass" title="North / Yaw Orientation">
+              <div id="compass-needle">▲ N</div>
+            </div>
+          </div>
+
+          <!-- 2. Right Sub-panel: Large Primary RGB Camera View with DJI HUD -->
+          <div id="rgb-main-pane" class="split-rgb-pane">
+            <div class="video-canvas-container">
+              <img id="img-rgb-stream" alt="RGB Stream" src="" />
+              
+              <!-- Top Drone Camera HUD -->
+              <div class="rgb-top-hud">
+                <div class="hud-left-clock">00:00</div>
+                <div class="hud-cam-badge">Mavic Mini Camera</div>
+                <div class="hud-right-settings">
+                  <span>AUTO</span> <span>ISO 100</span> <span>SHUTTER 640</span> <span>F 2.8</span> <span>EV 0</span> <span>WB 5400</span>
+                </div>
+              </div>
+
+              <!-- Reticle Crosshair -->
+              <div id="rgb-overlay-text" class="video-overlay-hud">+</div>
+
+              <!-- Bottom Drone Camera Telemetry HUD -->
+              <div class="rgb-bottom-hud">
+                <div class="hud-telem-row">
+                  <span class="hud-val">L 35.9 m</span>
+                  <span class="hud-val">H.S. <span id="hud-hs">0.0</span> m/s</span>
+                  <span class="hud-val">DRC N/A</span>
+                </div>
+                <div class="hud-telem-row">
+                  <span class="hud-val">9 m</span>
+                  <span class="hud-val">V.S. <span id="hud-vs">0.0</span> m/s</span>
+                  <span class="hud-val">VPS N/A <span class="hud-warning-icon">⚠️</span></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Live Coordinate Readout in Bottom-Right -->
+            <div id="map-coord-readout">X: -5.34m | Y: 15.43m | Grid: --</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- RIGHT COLUMN: Single Thermal Camera, Telemetry, Survivors -->
+      <aside id="sidebar-section">
+        
+        <!-- Thermal Camera Panel -->
+        <div id="thermal-panel-box" class="panel video-box">
+          <div class="panel-header">
+            <span class="video-name">THERMAL CAMERA (FLIR)</span>
+            <span id="thermal-status-badge" class="badge-mini badge-sim">SIMULATED THERMAL</span>
+          </div>
+          <div class="video-canvas-container">
+            <img id="img-thermal-stream" alt="Thermal Stream" src="" />
+            <div id="thermal-overlay-text" class="thermal-reticle"></div>
+          </div>
+        </div>
+
+        <!-- Telemetry & Sensor Health -->
+        <div class="panel telemetry-panel">
+          <div class="panel-header">
+            <span class="panel-title">📊 FLIGHT TELEMETRY & KINEMATICS</span>
+          </div>
+          <div class="telemetry-body">
+            <!-- Artificial Horizon Canvas -->
+            <div class="attitude-wrapper">
+              <canvas id="attitude-canvas" width="130" height="110"></canvas>
+              <div class="attitude-label">ARTIFICIAL HORIZON</div>
+            </div>
+
+            <!-- Numeric Gauges -->
+            <div class="telem-gauges-grid">
+              <div class="telem-cell">
+                <span class="t-label">ALTITUDE</span>
+                <span id="val-altitude" class="t-value">0.00</span>
+                <span class="t-unit">m</span>
+              </div>
+              <div class="telem-cell">
+                <span class="t-label">VELOCITY</span>
+                <span id="val-speed" class="t-value">0.00</span>
+                <span class="t-unit">m/s</span>
+              </div>
+              <div class="telem-cell">
+                <span class="t-label">HEADING</span>
+                <span id="val-heading" class="t-value">000</span>
+                <span class="t-unit">°</span>
+              </div>
+              <div class="telem-cell">
+                <span class="t-label">ROLL / PITCH</span>
+                <span id="val-roll-pitch" class="t-value">-0.2 / +0.1</span>
+                <span class="t-unit">°</span>
+              </div>
+              <div class="telem-cell">
+                <span class="t-label">LOCAL POSE</span>
+                <span id="val-pose" class="t-value">(1.25, 1.25)</span>
+                <span class="t-unit">m</span>
+              </div>
+              <div class="telem-cell">
+                <span class="t-label">SEARCH GRID</span>
+                <span id="val-grid" class="t-value">A1</span>
+                <span class="t-unit">cell</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Autonomous Survivor Localisation -->
+        <div class="panel survivor-panel">
+          <div class="panel-header">
+            <span class="panel-title">🎯 AUTONOMOUS SURVIVORS</span>
+            <span id="survivor-summary-count" class="tag-badge">NO. OF SURVIVORS DETECTED: 0</span>
+          </div>
+          <div id="survivor-cards-container">
+            <div class="survivor-empty-placeholder">No survivors detected yet. Searching arena corridors...</div>
+          </div>
+        </div>
+
+      </aside>
+    </main>
+
+    <!-- 3. BOTTOM CONTROL & EVENT LOG BAR -->
+    <footer id="bottom-bar">
+      
+      <!-- Mission Actions & Radio Link Info -->
+      <div class="bottom-left-controls">
+        <div class="btn-group-mission">
+          <button id="btn-start-mission" class="btn btn-action-start">▶ START MISSION</button>
+          <button id="btn-abort-mission" class="btn btn-action-abort">🛑 EMERGENCY ABORT</button>
+          <button id="btn-reset-mission" class="btn btn-action-reset">🔄 RESET</button>
+          <button id="btn-sim-survivor" class="btn btn-action-inject">🎯 SIM SURVIVOR</button>
+        </div>
+
+        <!-- RF Radio Link Diagnostics -->
+        <div class="radio-diagnostics">
+          <span class="rf-title">RF LINK:</span>
+          <span id="rf-status-text" class="rf-val">CONNECTED</span>
+          <span class="rf-sep">|</span>
+          <span class="rf-title">RSSI:</span>
+          <span id="rf-rssi-text" class="rf-val">-64.6 dBm</span>
+          <span class="rf-sep">|</span>
+          <span class="rf-title">LOSS:</span>
+          <span id="rf-loss-text" class="rf-val">0.5%</span>
+          <span class="rf-sep">|</span>
+          <span class="rf-title">LATENCY:</span>
+          <span id="rf-latency-text" class="rf-val">25.9ms</span>
+        </div>
+      </div>
+
+      <!-- Real-time Scrolling Event Log Terminal -->
+      <div class="bottom-right-log">
+        <div class="log-header">
+          <span class="log-title">SYSTEM EVENT LOG</span>
+          <button id="btn-clear-log" class="btn-mini">Clear</button>
+        </div>
+        <div id="event-terminal">
+          <!-- Log entries stream here -->
+        </div>
+      </div>
+
+    </footer>
+
+    <!-- 4. NON-BLOCKING SURVIVOR TOAST POP-UP -->
+    <div id="survivor-toast" class="toast hidden">
+      <div class="toast-icon">🚨</div>
+      <div class="toast-content">
+        <div class="toast-title">AUTONOMOUS SURVIVOR DETECTED</div>
+        <div id="toast-details" class="toast-body">ID: S01 | Grid: B3 | Confidence: 95%</div>
+      </div>
+      <button id="btn-toast-dismiss" class="toast-close">✕</button>
+    </div>
+
+    <!-- 5. EMERGENCY ABORT CONFIRMATION MODAL -->
+    <div id="abort-modal" class="modal-backdrop hidden">
+      <div class="modal-card">
+        <div class="modal-header">⚠️ CONFIRM EMERGENCY ABORT</div>
+        <div class="modal-body">
+          Are you sure you want to trigger <b>EMERGENCY ABORT</b>?<br><br>
+          This will immediately stop autonomous navigation, initiate safety landing/hold, and terminate the mission.
+        </div>
+        <div class="modal-footer">
+          <button id="btn-modal-cancel" class="btn btn-secondary">CANCEL</button>
+          <button id="btn-modal-confirm-abort" class="btn btn-danger">CONFIRM ABORT</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- JavaScript Modules -->
+  <script src="js/ws_client.js"></script>
+  <script src="js/map_renderer.js"></script>
+  <script src="js/telemetry_view.js"></script>
+  <script src="js/camera_view.js"></script>
+  <script src="js/survivor_manager.js"></script>
+  <script src="js/radio_view.js"></script>
+  <script src="js/event_log.js"></script>
+  <script src="js/controls.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
