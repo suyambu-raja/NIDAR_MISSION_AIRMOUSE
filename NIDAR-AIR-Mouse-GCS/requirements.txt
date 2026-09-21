@@ -1,0 +1,13 @@
+# NIDAR AirMouse Ground Control Station (GCS) Dependencies
+aiohttp>=3.9.0
+opencv-python>=4.8.0
+numpy>=1.24.0
+pymavlink>=2.4.37
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+
+# ROS 2 packages installed via apt on Jetson:
+# sudo apt install ros-humble-cv-bridge
+# sudo apt install ros-humble-rclpy
+rclpy
+cv_bridge
