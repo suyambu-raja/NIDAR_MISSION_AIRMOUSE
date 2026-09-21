@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NIDAR AIRMOUSE GCS — M2 GPS-Denied Autonomous Indoor Rescue Drone System</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="app-container">
+
+    <!-- CONNECTION LOSS ALERT BANNER (Section 33) -->
+    <div id="connection-loss-banner" class="conn-loss-banner hidden">
+      <div class="conn-loss-content">
+        <span class="conn-loss-icon">⚠️</span>
+        <span id="conn-loss-text">GCS CONNECTION LOST | LAST TELEMETRY: 0s AGO | ONBOARD AUTONOMY CONTINUES</span>
+        <button id="btn-reconnect-now" class="btn-mini btn-reconnect">RECONNECT</button>
+      </div>
+    </div>
+
+    <!-- 1. TOP HEADER BAR (Section 34) -->
+    <header id="header-bar">
+      <div class="header-left">
+        <div class="brand-logo">🚁</div>
+        <div class="brand-titles">
+          <div class="main-title">NIDAR M2 MISSION CONTROL</div>
+          <div class="sub-title">NIDAR AIRMOUSE GCS — GPS-DENIED RESCUE SYSTEM</div>
+        </div>
+      </div>
+
+      <div class="header-center">
+        <div class="status-group">
+          <span class="label">MISSION:</span>
+          <span id="mission-badge" class="badge badge-ready">READY</span>
+        </div>
+        <div class="status-group">
+          <span class="label">GPS:</span>
+          <span id="gps-badge" class="badge badge-gps-denied">DENIED (INDOOR EKF)</span>
+        </div>
+        <div class="status-group">
+          <span class="label">SYSTEM:</span>
+          <span id="system-safety-badge" class="badge badge-connected">SYSTEM OK</span>
+        </div>
+        <div class="status-group">
+          <span class="label">FLIGHT:</span>
+          <span id="flight-mode-badge" class="badge badge-disarmed">DISARMED</span>
+        </div>
+        <div class="status-group">
+          <span class="label">RADIO RF:</span>
+          <span id="radio-badge" class="badge badge-rf-good">RF: GOOD (-64.6 dBm)</span>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <!-- Battery Gauge -->
+        <div class="battery-container">
+          <span class="batt-icon">🔋</span>
+          <div class="battery-bar-bg">
+            <div id="battery-bar-fill" style="width: 98%;"></div>
+          </div>
+          <span id="battery-text">98% (16.6V)</span>
+        </div>
+
+        <!-- Mission Elapsed Clock -->
+        <div class="timer-container">
+          <span class="timer-icon">⏱️</span>
+          <span id="mission-timer">00:00</span>
+        </div>
+
+        <!-- Connection Toggle Button -->
+        <button id="btn-toggle-connect" class="btn btn-connect">DISCONNECT</button>
+      </div>
+    </header>
+
+    <!-- 2. MAIN 3-COLUMN WORKSPACE (Section 34) -->
+    <main id="main-workspace">
+
+      <!-- LEFT COLUMN: Mission Overview, Flight Kinematics, GPS-Denied Health, Cameras -->
+      <aside id="sidebar-left" class="workspace-col sidebar-left">
+
+        <!-- A. Mission & Flight Kinematics -->
+        <div class="panel telemetry-panel">
+          <div class="panel-header">
+            <span class="panel-title">📊 FLIGHT STATE & KINEMATICS</span>
+            <span id="fcu-conn-badge" class="badge-mini badge-sim">SITL / FCU</span>
+          </div>
+          <div class="telemetry-body">
+            <!-- Artificial Horizon Canvas -->
+            <div class="attitude-wrapper">
+              <canvas id="attitude-canvas" width="120" height="96"></canvas>
+              <div class="attitude-label">ARTIFICIAL HORIZON</div>
+            </div>
+
+            <!-- Numeric Readouts Grid -->
+            <div class="telem-gauges-grid">
+              <div class="telem-cell">
+                <span class="t-label">ALTITUDE</span>
+                <span id="val-altitude" class="t-value">0.00</span>
+                <span class="t-unit">m</span>
+              </div>
+              <div class="telem-cell">
+                <span class="t-label">VELOCITY</span>
+                <span id="val-speed" class="t-value">0.00</span>
+                <span class="t-unit">m/s</span>
+              </div>
+              <div class="telem-cell">
+                <span class="t-label">HEADING</span>
+                <span id="val-heading" class="t-value">000</span>
+                <span class="t-unit">°</span>
+              </div>
+              <div class="telem-cell">
+                <span class="t-label">ROLL / PITCH</span>
+                <span id="val-roll-pitch" class="t-value">0.0 / 0.0</span>
+                <span class="t-unit">°</span>
+              </div>
+              <div class="telem-cell">
+                <span class="t-label">LOCAL POSE</span>
+                <span id="val-pose" class="t-value">(0.00, 0.00)</span>
+                <span class="t-unit">m</span>
+              </div>
+              <div class="telem-cell">
+                <span class="t-label">ARENA GRID</span>
+                <span id="val-grid" class="t-value">A1</span>
+                <span class="t-unit">cell</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- B. GPS-Denied Status & Sensor Fusion Health (Section 16) -->
+        <div class="panel gps-denied-panel">
+          <div class="panel-header">
+            <span class="panel-title">🛰️ GPS-DENIED NAVIGATION STACK</span>
+          </div>
+          <div class="gps-health-list">
+            <div class="gps-health-item">
+              <span class="gh-label">GPS STATUS:</span>
+              <span class="gh-status tag-gps-denied">DENIED / NOT REQUIRED</span>
+            </div>
+            <div class="gps-health-item">
+              <span class="gh-label">STATE ESTIMATION:</span>
+              <span id="stat-ekf" class="gh-status tag-ok">EKF HEALTHY</span>
+            </div>
+            <div class="gps-health-item">
+              <span class="gh-label">2D LiDAR SLAM:</span>
+              <span id="stat-slam" class="gh-status tag-ok">HEALTHY (0.05m)</span>
+            </div>
+            <div class="gps-health-item">
+              <span class="gh-label">OPTICAL FLOW:</span>
+              <span id="stat-flow" class="gh-status tag-ok">HEALTHY (50 Hz)</span>
+            </div>
+            <div class="gps-health-item">
+              <span class="gh-label">RANGEFINDER (LiDAR):</span>
+              <span id="stat-range" class="gh-status tag-ok">HEALTHY (20 Hz)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- C. Dual Vision Feeds: RGB + Thermal (Section 13) -->
+        <div class="panel vision-dual-panel">
+          <div class="panel-header">
+            <span class="panel-title">📷 DUAL VISION FUSION</span>
+            <div class="vision-tab-btns">
+              <button id="tab-btn-rgb" class="tab-btn active">RGB (OAK-D)</button>
+              <button id="tab-btn-thermal" class="tab-btn">FLIR THERMAL</button>
+            </div>
+          </div>
+          <div class="vision-viewports-container">
+            <!-- RGB Viewport -->
+            <div id="rgb-viewport" class="camera-viewport active">
+              <img id="img-rgb-stream" alt="RGB Stream" src="" />
+              <div class="hud-top-bar">
+                <span class="hud-badge">OAK-D Pro</span>
+                <span id="rgb-fps-badge" class="hud-val">30 FPS</span>
+              </div>
+              <div class="hud-reticle">+</div>
+              <div class="hud-bottom-bar">
+                <span id="hud-yolo-status">YOLOv8: ACTIVE</span>
+              </div>
+            </div>
+            <!-- Thermal Viewport -->
+            <div id="thermal-viewport" class="camera-viewport">
+              <img id="img-thermal-stream" alt="Thermal Stream" src="" />
+              <div class="hud-top-bar">
+                <span class="hud-badge thermal-badge">FLIR Lepton 3.5</span>
+                <span id="thermal-fps-badge" class="hud-val">8 FPS</span>
+              </div>
+              <div class="hud-reticle thermal-reticle"></div>
+              <div class="hud-bottom-bar">
+                <span id="hud-thermal-status">YOLO11n Thermal: ACTIVE</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </aside>
+
+      <!-- CENTER COLUMN: Large Interactive 2D SLAM Rescue Map (Section 10, 31, 34) -->
+      <section id="map-section" class="panel workspace-col center-map-column">
+        <div class="panel-header">
+          <span class="panel-title">🗺️ NIDAR M2 LIVE 2D RESCUE & OCCUPANCY GRID MAP</span>
+          <div class="panel-header-actions">
+            <!-- SLAM Mode selector -->
+            <div class="slam-mode-select-wrapper">
+              <label for="slam-mode-select" class="mode-select-label">SOURCE:</label>
+              <select id="slam-mode-select" class="tactical-select-input">
+                <option value="REALTIME">📡 Real-Time ROS 2 (Pi / Live LiDAR)</option>
+                <option value="SIMULATION">🎮 Simulation Arena (Raycast)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div id="map-canvas-wrapper" class="map-container">
+          <canvas id="map-canvas"></canvas>
+
+          <!-- Floating Map Controls & Overlays -->
+          <div class="map-overlay-controls">
+            <button id="btn-map-fit" class="map-ctrl-btn" title="Fit to Arena">Fit Map</button>
+            <button id="btn-map-zoom-in" class="map-ctrl-btn" title="Zoom In">➕</button>
+            <button id="btn-map-zoom-out" class="map-ctrl-btn" title="Zoom Out">➖</button>
+            <label class="map-ctrl-toggle">
+              <input type="checkbox" id="chk-follow-drone"> Follow Drone
+            </label>
+            <label class="map-ctrl-toggle">
+              <input type="checkbox" id="chk-show-grid" checked> Grid (A1-H8)
+            </label>
+            <label class="map-ctrl-toggle">
+              <input type="checkbox" id="chk-show-path" checked> A* Path
+            </label>
+            <label class="map-ctrl-toggle">
+              <input type="checkbox" id="chk-show-frontiers" checked> Frontiers
+            </label>
+            <label class="map-ctrl-toggle">
+              <input type="checkbox" id="chk-show-corridors" checked> Corridors
+            </label>
+            <label class="map-ctrl-toggle">
+              <input type="checkbox" id="chk-show-trail" checked> Trail
+            </label>
+          </div>
+
+          <!-- Compass Rose -->
+          <div class="map-compass" title="Heading / North Orientation">
+            <div id="compass-needle">▲ N</div>
+          </div>
+
+          <!-- Map Legend Overlay -->
+          <div class="map-legend">
+            <span class="leg-item"><span class="leg-box leg-drone"></span> Drone</span>
+            <span class="leg-item"><span class="leg-box leg-path"></span> A* Path</span>
+            <span class="leg-item"><span class="leg-box leg-failsafe"></span> Failsafe</span>
+            <span class="leg-item"><span class="leg-box leg-frontier"></span> Frontier</span>
+            <span class="leg-item"><span class="leg-box leg-survivor"></span> Survivor</span>
+            <span class="leg-item"><span class="leg-box leg-wall"></span> Wall</span>
+            <span class="leg-item"><span class="leg-box leg-corridor"></span> Corridor</span>
+          </div>
+
+          <!-- Live Coordinate Readout -->
+          <div id="map-coord-readout" class="map-coord-tag">X: 0.00m | Y: 0.00m | Grid: A1</div>
+        </div>
+      </section>
+
+      <!-- RIGHT COLUMN: Survivor Registry & Sensor Health Dashboard (Section 11, 15, 34) -->
+      <aside id="sidebar-right" class="workspace-col sidebar-right">
+
+        <!-- A. Survivor Rescue Registry (Section 11, 12) -->
+        <div class="panel survivor-panel">
+          <div class="panel-header">
+            <span class="panel-title">🎯 SURVIVOR RESCUE REGISTRY</span>
+            <span id="survivor-summary-count" class="tag-badge">SURVIVORS CONFIRMED: 0</span>
+          </div>
+          <div id="survivor-cards-container" class="survivor-scroll-list">
+            <div class="survivor-empty-placeholder">No survivors confirmed yet. Searching arena corridors...</div>
+          </div>
+        </div>
+
+        <!-- B. Sensor & System Health Dashboard (Section 15) -->
+        <div class="panel health-panel">
+          <div class="panel-header">
+            <span class="panel-title">🩺 SENSOR & SYSTEM HEALTH</span>
+            <span id="overall-health-badge" class="badge-mini badge-connected">ALL OK</span>
+          </div>
+          <div class="health-grid">
+            <div class="health-card" id="health-imu">
+              <span class="h-name">IMU (ICM-42688)</span>
+              <span class="h-status ok">OK (200Hz)</span>
+            </div>
+            <div class="health-card" id="health-flow">
+              <span class="h-name">Optical Flow</span>
+              <span class="h-status ok">OK (50Hz)</span>
+            </div>
+            <div class="health-card" id="health-range">
+              <span class="h-name">Rangefinder (ToF)</span>
+              <span class="h-status ok">OK (20Hz)</span>
+            </div>
+            <div class="health-card" id="health-lidar">
+              <span class="h-name">2D LiDAR (A2M8)</span>
+              <span class="h-status ok">OK (10Hz)</span>
+            </div>
+            <div class="health-card" id="health-rgb">
+              <span class="h-name">RGB Cam (OAK-D)</span>
+              <span class="h-status ok">OK (30Hz)</span>
+            </div>
+            <div class="health-card" id="health-thermal">
+              <span class="h-name">Thermal (FLIR)</span>
+              <span class="h-status ok">OK (8Hz)</span>
+            </div>
+            <div class="health-card" id="health-fcu">
+              <span class="h-name">Pixhawk 6C (MAV)</span>
+              <span class="h-status ok">OK</span>
+            </div>
+            <div class="health-card" id="health-battery">
+              <span class="h-name">Battery (4S LiPo)</span>
+              <span class="h-status ok">OK (16.6V)</span>
+            </div>
+            <div class="health-card" id="health-mavros">
+              <span class="h-name">MAVROS Bridge</span>
+              <span class="h-status ok">OK</span>
+            </div>
+            <div class="health-card" id="health-ros2">
+              <span class="h-name">ROS 2 DDS</span>
+              <span class="h-status ok">OK</span>
+            </div>
+            <div class="health-card" id="health-bridge">
+              <span class="h-name">GCS Bridge Link</span>
+              <span class="h-status ok">OK (26ms)</span>
+            </div>
+            <div class="health-card" id="health-nav">
+              <span class="h-name">Nav & Planning</span>
+              <span class="h-status ok">OK</span>
+            </div>
+          </div>
+        </div>
+
+      </aside>
+
+    </main>
+
+    <!-- 3. BOTTOM AUTONOMY STATUS, FAILSAFE & FLIGHT OPERATIONS BAR (Section 14, 17, 18, 34) -->
+    <footer id="bottom-bar">
+
+      <!-- A. Autonomy Status Panel (Section 14) -->
+      <div class="bottom-autonomy-panel">
+        <div class="autonomy-header">
+          <span class="autonomy-title">🧠 AUTONOMY & NAVIGATION PIPELINE</span>
+        </div>
+        <div class="autonomy-metrics-row">
+          <div class="auto-metric">
+            <span class="am-label">EXPLORATION:</span>
+            <span id="auto-state" class="am-val active">ACTIVE</span>
+          </div>
+          <div class="auto-metric">
+            <span class="am-label">FRONTIERS:</span>
+            <span id="auto-frontiers" class="am-val">0</span>
+          </div>
+          <div class="auto-metric">
+            <span class="am-label">PLANNER:</span>
+            <span id="auto-planner" class="am-val">A* (0.30m margin)</span>
+          </div>
+          <div class="auto-metric">
+            <span class="am-label">LOCAL AVOIDANCE:</span>
+            <span id="auto-local" class="am-val">DWA / BRAKE</span>
+          </div>
+          <div class="auto-metric">
+            <span class="am-label">CORRIDOR TYPE:</span>
+            <span id="auto-corridor" class="am-val highlight">UNCLASSIFIED</span>
+          </div>
+          <div class="auto-metric">
+            <span class="am-label">OBSTACLE CLEAR:</span>
+            <span id="auto-obstacle" class="am-val">-- m</span>
+          </div>
+          <div class="auto-metric">
+            <span class="am-label">EMERGENCY BRAKE:</span>
+            <span id="auto-brake" class="am-val ready">READY</span>
+          </div>
+          <div class="auto-metric">
+            <span class="am-label">COVERAGE:</span>
+            <span id="auto-coverage" class="am-val">0%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- B. Emergency / Failsafe Status Banner (Section 18) -->
+      <div class="bottom-failsafe-panel">
+        <div class="failsafe-row">
+          <div class="failsafe-status-box">
+            <span class="fs-title">FAILSAFE STATUS:</span>
+            <span id="fs-state-badge" class="fs-badge fs-safe">SAFE / READY</span>
+          </div>
+          <div class="failsafe-detail-box">
+            <span class="fs-lbl">ACTIVE TRIGGER:</span>
+            <span id="fs-reason" class="fs-txt">NONE</span>
+          </div>
+          <div class="failsafe-detail-box">
+            <span class="fs-lbl">SAFETY PROCEDURE:</span>
+            <span id="fs-action" class="fs-txt">STANDBY</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- C. Flight & Mission Controls (Section 17) -->
+      <div class="bottom-controls-bar">
+        <div class="btn-group-flight">
+          <button id="btn-arm" class="btn btn-flight btn-arm">ARM</button>
+          <button id="btn-disarm" class="btn btn-flight btn-disarm">DISARM</button>
+          <button id="btn-takeoff" class="btn btn-flight btn-takeoff">TAKEOFF (2.5m)</button>
+          <button id="btn-land" class="btn btn-flight btn-land">LAND</button>
+          <button id="btn-rtl" class="btn btn-flight btn-rtl">RTL / SAFE ACTION</button>
+          <button id="btn-pause" class="btn btn-flight btn-pause">PAUSE</button>
+          <button id="btn-resume" class="btn btn-flight btn-resume">RESUME</button>
+          <button id="btn-start-mission" class="btn btn-action-start">▶ START AUTONOMY</button>
+          <button id="btn-abort-mission" class="btn btn-action-abort">🛑 EMERGENCY ABORT</button>
+          <button id="btn-reset-mission" class="btn btn-action-reset">🔄 RESET</button>
+          <button id="btn-sim-survivor" class="btn btn-action-inject">🎯 SIM SURVIVOR</button>
+        </div>
+
+        <!-- RF Diagnostics readout -->
+        <div class="radio-diagnostics">
+          <span class="rf-title">RF LINK:</span>
+          <span id="rf-status-text" class="rf-val">CONNECTED</span>
+          <span class="rf-sep">|</span>
+          <span class="rf-title">RSSI:</span>
+          <span id="rf-rssi-text" class="rf-val">-64.6 dBm</span>
+          <span class="rf-sep">|</span>
+          <span class="rf-title">LOSS:</span>
+          <span id="rf-loss-text" class="rf-val">0.5%</span>
+          <span class="rf-sep">|</span>
+          <span class="rf-title">LATENCY:</span>
+          <span id="rf-latency-text" class="rf-val">25.9ms</span>
+        </div>
+      </div>
+
+      <!-- D. System Event Log Drawer -->
+      <div class="bottom-event-log-drawer">
+        <div class="log-header">
+          <span class="log-title">SYSTEM EVENT & AUDIT LOG</span>
+          <button id="btn-clear-log" class="btn-mini">Clear Log</button>
+        </div>
+        <div id="event-terminal" class="terminal-body"></div>
+      </div>
+
+    </footer>
+
+    <!-- 4. NON-BLOCKING SURVIVOR TOAST POP-UP (Section 11) -->
+    <div id="survivor-toast" class="toast hidden">
+      <div class="toast-icon">🚨</div>
+      <div class="toast-content">
+        <div class="toast-title">AUTONOMOUS SURVIVOR DETECTED</div>
+        <div id="toast-details" class="toast-body">ID: S01 | Grid: B3 | Confidence: 95%</div>
+      </div>
+      <button id="btn-toast-dismiss" class="toast-close">✕</button>
+    </div>
+
+    <!-- 5. EMERGENCY ABORT CONFIRMATION MODAL (Section 17, 18) -->
+    <div id="abort-modal" class="modal-backdrop hidden">
+      <div class="modal-card">
+        <div class="modal-header">⚠️ CONFIRM EMERGENCY ABORT</div>
+        <div class="modal-body">
+          Are you sure you want to trigger <b>EMERGENCY ABORT</b>?<br><br>
+          This will immediately stop autonomous exploration, command MAVROS to engage safety hover/landing, and initiate emergency braking.
+        </div>
+        <div class="modal-footer">
+          <button id="btn-modal-cancel" class="btn btn-secondary">CANCEL</button>
+          <button id="btn-modal-confirm-abort" class="btn btn-danger">CONFIRM ABORT</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- JavaScript Modules -->
+  <script src="js/ws_client.js"></script>
+  <script src="js/map_renderer.js"></script>
+  <script src="js/telemetry_view.js"></script>
+  <script src="js/camera_view.js"></script>
+  <script src="js/survivor_manager.js"></script>
+  <script src="js/radio_view.js"></script>
+  <script src="js/event_log.js"></script>
+  <script src="js/controls.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

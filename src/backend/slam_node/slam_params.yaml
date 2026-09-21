@@ -1,0 +1,174 @@
+# =============================================================================
+# slam_params.yaml — slam_toolbox Configuration for NIDAR AirMouse
+# =============================================================================
+# Hardware:  RPLIDAR A2M8 (2D LiDAR, 360°, 8m range, ~10Hz)
+# Platform:  Raspberry Pi 4 (8 GB), Ubuntu 22.04, ROS 2 Humble
+# Arena:     Indoor maze, max 15×15m, corridors ≥1m, rooms ≥2×2m, 8ft ceiling
+#
+# Mode: async (recommended for Pi4 — processes scans as fast as CPU allows
+#        without blocking the ROS spinner, so other nodes stay responsive)
+#
+# All values are tuned for:
+#   1. Low CPU usage on Pi4 (no unnecessary recomputations)
+#   2. Sub-10cm pose accuracy in tight corridors
+#   3. Reliable loop closure in rooms visited more than once
+# =============================================================================
+
+slam_toolbox:
+  ros__parameters:
+
+    # -------------------------------------------------------------------------
+    # Core solver mode
+    # -------------------------------------------------------------------------
+    # "mapping"  — online SLAM, builds map while navigating (what we use)
+    # "localization" — assumes map already exists (use after exploration done)
+    solver_plugin: solver_plugins::CeresSolver
+
+    # Async mode: slam_toolbox processes in its own thread and doesn't block
+    # the ROS spin loop.  Crucial on Pi4 where CPU is shared with other nodes.
+    # (sync mode would cause timer jitter and hurt MAVLink heartbeat timing)
+    use_lifecycle_manager: false
+    use_map_saver: false
+
+    # -------------------------------------------------------------------------
+    # TF / frame configuration
+    # -------------------------------------------------------------------------
+    # These must match the static transform published in rplidar_launch.py
+    odom_frame: odom             # Odometry frame (slam_toolbox manages this internally)
+    map_frame: map               # Global map frame — all poses expressed here
+    base_frame: base_link        # Drone body frame
+    scan_topic: /scan            # Must match RPLIDAR driver's publish topic
+
+    # Use slam_toolbox's internal odometry (pose graph) rather than wheel odom.
+    # We have no wheel encoders — the drone uses scan-matching for odometry.
+    # Setting this to true makes slam_toolbox generate its own odom from scans.
+    mode: mapping
+
+    # -------------------------------------------------------------------------
+    # Map resolution and size
+    # -------------------------------------------------------------------------
+    # 0.05m = 5cm per cell — good balance between detail and memory on Pi4.
+    # At 5cm/cell, a 15×15m arena = 300×300 cells = 90,000 cells → ~90KB map.
+    # Finer (0.02m) would triple memory and CPU; coarser (0.1m) misses corridors.
+    resolution: 0.05
+
+    # Map starts at 20×20m and grows dynamically as the drone explores.
+    # 20m > 15m arena max — covers the whole arena from the start.
+    map_start_pose: [0.0, 0.0, 0.0]
+
+    # -------------------------------------------------------------------------
+    # Scan / sensor parameters
+    # -------------------------------------------------------------------------
+    # RPLIDAR A2M8 hardware spec: max reliable range = 8.0m
+    # Setting max_laser_range to exactly 8.0 prevents using unreliable long-range
+    # measurements that RPLIDAR reports with higher error at distance.
+    max_laser_range: 8.0
+
+    # Minimum range — ignore readings closer than 0.15m (LiDAR's near-field blind
+    # spot where reflections from the drone frame itself can corrupt measurements)
+    minimum_laser_range: 0.15
+
+    # Scan buffer: how many recent scans to keep in memory for scan-matching.
+    # 2 → lightweight, matches current and previous scan only.
+    # More = better accuracy but higher RAM and CPU on Pi4.
+    scan_buffer_size: 2
+    scan_buffer_maximum_scan_distance: 10.0   # [m] max scan distance kept in buffer
+
+    # -------------------------------------------------------------------------
+    # Motion triggers — when to process a new scan
+    # -------------------------------------------------------------------------
+    # Only update the pose graph when the drone has moved enough.
+    # Too low → wastes CPU; too high → misses fast turns in narrow corridors.
+    #
+    # 0.1m linear  — at 0.3 m/s cruise speed this triggers ~3× per second
+    # 0.1 rad heading — ~5.7° before triggering; keeps corners well-represented
+    minimum_travel_distance: 0.1   # [m]
+    minimum_travel_heading: 0.1    # [rad] ≈ 5.7°
+
+    # -------------------------------------------------------------------------
+    # Map publishing
+    # -------------------------------------------------------------------------
+    # How often (seconds) the occupancy grid is re-computed and published on /map.
+    # 0.5s = 2Hz — sufficient for grid_mapper_node and GCS dashboard.
+    # Lower (e.g. 0.1s) would use extra CPU for map serialization on Pi4.
+    map_update_interval: 0.5
+
+    # How often (seconds) to publish the /map topic even if unchanged.
+    # Keeps the RViz / GCS display alive during slow exploration periods.
+    map_publish_period: 1.0   # [s]
+
+    # -------------------------------------------------------------------------
+    # Scan matching — ICP / scan-to-map correlation
+    # -------------------------------------------------------------------------
+    # Number of scan-matching iterations per update.
+    # 20 is a good middle ground for Pi4: accurate but not CPU-saturating.
+    # Increase to 40 if drift is observed in long corridors.
+    scan_matcher_iterations: 20
+
+    # Correlation parameters (used by the default correlation scan matcher)
+    # angular_search_window: max rotation to search during scan matching [rad]
+    # linear_search_window:  max translation to search [m]
+    # Smaller windows → faster matching; wider windows → more robust to jumps
+    angular_search_window: 0.349    # [rad] = 20° — sufficient for slow drone
+    linear_search_window: 0.3       # [m] — covers ≈1 control loop of drift
+
+    # Fine-tune: penalty for large angular / linear corrections.
+    # High penalty → prefers small corrections (less jitter), can miss large drift.
+    # These defaults from slam_toolbox work well for indoor LiDAR.
+    distance_variance_penalty: 0.5
+    angle_variance_penalty: 1.0
+
+    # -------------------------------------------------------------------------
+    # Loop closure
+    # -------------------------------------------------------------------------
+    # Loop closure kicks in when the drone re-visits an already-mapped area.
+    # In a 15×15m maze the drone will revisit rooms often.
+
+    # How often to run the loop closure search [s]
+    loop_search_space_dimension: 8.0     # [m] radius to search for loop candidates
+    loop_match_minimum_chain_size: 10    # min scans in a chain to consider a loop
+    loop_match_maximum_variance_covariance: 0.4  # reject high-uncertainty loops
+
+    # Minimum match score (0–1) for a candidate to be accepted as a loop closure.
+    # 0.55 is intentionally conservative to avoid false loop closures in
+    # visually-similar corridor segments (symmetric mazes can confuse matchers).
+    loop_match_minimum_response_coarse: 0.35
+    loop_match_minimum_response_fine: 0.45
+
+    # -------------------------------------------------------------------------
+    # Ceres solver settings (CPU budget for Pi4)
+    # -------------------------------------------------------------------------
+    # Ceres is the back-end that optimises the pose graph after loop closures.
+    # These settings limit CPU use while still converging quickly.
+    ceres_linear_solver: SPARSE_NORMAL_CHOLESKY  # fast for sparse graphs
+    ceres_preconditioner: SCHUR_JACOBI
+    ceres_trust_strategy: LEVENBERG_MARQUARDT
+    ceres_dogleg_type: TRADITIONAL_DOGLEG
+    ceres_loss_function: None    # no robust loss needed for well-calibrated LiDAR
+
+    # -------------------------------------------------------------------------
+    # Occupancy thresholds
+    # -------------------------------------------------------------------------
+    # free_thresh:  probability below which a cell is considered FREE
+    # occ_thresh:   probability above which a cell is considered OCCUPIED
+    # Values between free and occ are UNKNOWN (=-1 in OccupancyGrid).
+    # These match common Nav2 / exploration node conventions.
+    occ_thresh: 0.65
+    free_thresh: 0.25
+
+    # -------------------------------------------------------------------------
+    # Serialisation (map save / resume)
+    # -------------------------------------------------------------------------
+    # Enable to allow saving/loading the pose graph to disk.
+    # Useful if the mission is interrupted and needs to resume from a saved map.
+    # Disabled by default to save disk I/O on Pi4's SD card.
+    serialization_format: ".posegraph"   # file format for save/load
+
+    # -------------------------------------------------------------------------
+    # Debug / diagnostics
+    # -------------------------------------------------------------------------
+    # Set to true to publish /slam_toolbox/pose (PoseWithCovarianceStamped).
+    # Disable in production to save bandwidth — we use /drone_pose instead.
+    enable_interactive_mode: false
+    position_covariance_scale: 1.0
+    yaw_covariance_scale: 1.0

@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>exploration_node</name>
+  <version>0.1.0</version>
+  <description>
+    Exploration Node for NIDAR AirMouse.
+    Implements frontier-based autonomous exploration: detects frontier cells,
+    groups them via BFS, selects the best using an information-gain utility
+    function, plans a safe A* path, and publishes /goal_pose for mavros_bridge.
+    Battery-aware replanning switches strategy when charge is low.
+  </description>
+  <maintainer email="team@nidar.dev">NIDAR Team</maintainer>
+  <license>MIT</license>
+
+  <!-- Build system: Python packages use ament_python -->
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <!-- Runtime ROS 2 dependencies -->
+  <depend>rclpy</depend>
+
+  <!-- Standard ROS 2 message packages -->
+  <depend>nav_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>builtin_interfaces</depend>
+
+  <!-- TF2 for coordinate frame transforms -->
+  <depend>tf2_ros</depend>
+  <depend>tf2_geometry_msgs</depend>
+
+  <!-- Custom NIDAR messages: SurvivorGridArray (input) -->
+  <depend>nidar_msgs</depend>
+
+  <!-- Test dependencies -->
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

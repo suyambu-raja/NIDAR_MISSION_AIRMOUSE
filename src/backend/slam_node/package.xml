@@ -1,0 +1,85 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<!--
+  package.xml — slam_node ROS 2 Package Manifest
+  ================================================
+  Declares all ROS 2 build and runtime dependencies for the slam_node package.
+  ROS 2 Humble, Python ament build type.
+
+  Install all deps on Pi4:
+    sudo apt install \
+      ros-humble-slam-toolbox \
+      ros-humble-rplidar-ros \
+      ros-humble-tf2-ros \
+      ros-humble-tf2-geometry-msgs \
+      ros-humble-nav-msgs \
+      ros-humble-geometry-msgs \
+      ros-humble-sensor-msgs
+-->
+<package format="3">
+  <name>slam_node</name>
+  <version>0.1.0</version>
+  <description>
+    SLAM relay node for NIDAR AirMouse.
+    Wraps slam_toolbox to publish /map (nav_msgs/OccupancyGrid) and
+    /drone_pose (geometry_msgs/PoseStamped) from RPLIDAR A2M8 input.
+    Targets Raspberry Pi 4 (8 GB), ROS 2 Humble, indoor 15x15m maze.
+  </description>
+  <maintainer email="team@nidar.dev">NIDAR Team</maintainer>
+  <license>MIT</license>
+
+  <!-- ========================================================== -->
+  <!-- Build system — ament_python for pure-Python ROS 2 packages  -->
+  <!-- ========================================================== -->
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <!-- ========================================================== -->
+  <!-- Exec dependencies — packages needed at RUNTIME             -->
+  <!-- ========================================================== -->
+
+  <!-- ROS 2 Python client library — rclpy.node.Node base class -->
+  <exec_depend>rclpy</exec_depend>
+
+  <!-- slam_toolbox — async_slam_toolbox_node launched by rplidar_launch.py -->
+  <!-- Install: sudo apt install ros-humble-slam-toolbox -->
+  <exec_depend>slam_toolbox</exec_depend>
+
+  <!-- RPLIDAR A2M8 driver — publishes /scan (sensor_msgs/LaserScan) -->
+  <!-- Install: sudo apt install ros-humble-rplidar-ros -->
+  <exec_depend>rplidar_ros</exec_depend>
+
+  <!-- TF2 core — Buffer, TransformListener, static_transform_publisher -->
+  <!-- Install: sudo apt install ros-humble-tf2-ros -->
+  <exec_depend>tf2_ros</exec_depend>
+
+  <!-- TF2 geometry helpers — PoseStamped ↔ TransformStamped conversions -->
+  <!-- Install: sudo apt install ros-humble-tf2-geometry-msgs -->
+  <exec_depend>tf2_geometry_msgs</exec_depend>
+
+  <!-- nav_msgs — OccupancyGrid message type used for /map topic -->
+  <exec_depend>nav_msgs</exec_depend>
+
+  <!-- geometry_msgs — PoseStamped message type used for /drone_pose topic -->
+  <exec_depend>geometry_msgs</exec_depend>
+
+  <!-- sensor_msgs — LaserScan message type used for /scan subscription -->
+  <exec_depend>sensor_msgs</exec_depend>
+
+  <!-- launch_ros — Node, LogInfo, etc. used in rplidar_launch.py -->
+  <exec_depend>launch_ros</exec_depend>
+
+  <!-- ========================================================== -->
+  <!-- Test dependencies (optional linting)                        -->
+  <!-- ========================================================== -->
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <!-- ========================================================== -->
+  <!-- Export: declare this as an ament_python package             -->
+  <!-- ========================================================== -->
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
