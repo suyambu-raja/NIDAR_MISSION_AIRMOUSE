@@ -13,9 +13,10 @@ Usage:
     python main.py
 """
 import asyncio
-import sys
-import webbrowser
 from pathlib import Path
+import sys
+import threading
+import webbrowser
 
 # Add project root to sys.path
 ROOT_DIR = Path(__file__).resolve().parent
@@ -24,9 +25,10 @@ if str(ROOT_DIR) not in sys.path:
 
 from backend.server import GCSServer
 from config.config_manager import ConfigManager
+from communication.ros2_integration_manager import ROS2IntegrationManager
 
 
-async def run_gcs(host: str = "127.0.0.1", port: int = 8080, auto_open_browser: bool = True):
+async def run_gcs(host: str = "0.0.0.0", port: int = 8080, auto_open_browser: bool = True):
     """Runs the asynchronous GCS Backend and serves the HTML5 Frontend."""
     print("=" * 72)
     print("   NIDAR AIRMOUSE GROUND CONTROL STATION (GCS)")
@@ -53,8 +55,44 @@ async def run_gcs(host: str = "127.0.0.1", port: int = 8080, auto_open_browser: 
             else:
                 raise
 
-    url = f"http://{host}:{current_port}"
+    # Initialize and start ROS 2 Integration Manager
+    ros2_manager = ROS2IntegrationManager(server.queue, server=server)
+    ros2_manager.start()
+
+    # Video Source Configuration (Webcam / YOLO / RTSP / Simulation)
+    video_source = str(cfg_mgr.get("video_source", "simulation")).lower()
+    webcam_provider = None
+
+    if video_source in ("webcam", "usb", "rtsp"):
+        try:
+            from vision.webcam_provider import WebcamWithDetection
+            cam_idx = cfg_mgr.get("webcam_index", 0)
+            if video_source == "rtsp":
+                cam_idx = cfg_mgr.get("rtsp_url", cam_idx)
+
+            webcam = WebcamWithDetection(
+                camera_index=cam_idx,
+                width=int(cfg_mgr.get("webcam_width", 640)),
+                height=int(cfg_mgr.get("webcam_height", 480)),
+                model_path=cfg_mgr.get("yolo_model_path", "src/backend/detection_node/human_dataset/best.pt"),
+                conf=float(cfg_mgr.get("yolo_confidence", 0.45)),
+            )
+            server.webcam_provider = webcam
+            webcam_thread = threading.Thread(
+                target=webcam.start,
+                args=(server.queue,),
+                daemon=True
+            )
+            webcam_thread.start()
+            webcam_provider = webcam
+            print(f"✅ [GCS] Webcam started ({video_source}) — streaming to GCS with YOLOv8 detection")
+        except Exception as e:
+            print(f"⚠️ [GCS] Could not initialize webcam stream ({e}). Falling back to simulation.")
+
+    display_host = "127.0.0.1" if host == "0.0.0.0" else host
+    url = f"http://{display_host}:{current_port}"
     print(f"\n[GCS] Web Dashboard ready: {url}")
+    print(f"[GCS] Also accessible at: http://localhost:{current_port}")
     print("[GCS] Press Ctrl+C in this terminal to shut down.\n")
 
     if auto_open_browser:
@@ -72,6 +110,10 @@ async def run_gcs(host: str = "127.0.0.1", port: int = 8080, auto_open_browser: 
     except (asyncio.CancelledError, KeyboardInterrupt):
         print("\n[GCS] Shutting down server gracefully...")
     finally:
+        if webcam_provider:
+            webcam_provider.stop()
+        if ros2_manager:
+            ros2_manager.stop()
         if server:
             await server.stop_server()
         print("[GCS] Server stopped.")

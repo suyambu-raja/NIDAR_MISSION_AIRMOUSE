@@ -51,10 +51,16 @@ class SafetyConfig:
 
 @dataclass
 class VideoConfig:
-    source: str = "simulated"  # "simulated", "0" (USB webcam), or RTSP/UDP URL
+    source: str = "simulated"  # "simulated", "webcam", "rtsp", "ros2"
     fps: int = 30
     width: int = 640
     height: int = 480
+    webcam_index: int = 0
+    webcam_width: int = 640
+    webcam_height: int = 480
+    yolo_model_path: str = "src/backend/detection_node/human_dataset/best.pt"
+    yolo_confidence: float = 0.45
+    rtsp_url: str = ""
 
 
 @dataclass
@@ -81,7 +87,19 @@ class ConfigManager:
 
     def __init__(self, config_path: Optional[str] = None):
         self.config_path = Path(config_path) if config_path else self.DEFAULT_CONFIG_PATH
+        self.raw_data: Dict[str, Any] = {}
         self.config: GCSConfig = self.load_config()
+
+    def get(self, key: str, default: Any = None) -> Any:
+        """Helper to get key from top-level raw config, or video section, or default."""
+        if key in self.raw_data:
+            return self.raw_data[key]
+        if "video" in self.raw_data and isinstance(self.raw_data["video"], dict) and key in self.raw_data["video"]:
+            return self.raw_data["video"][key]
+        # Also check video dataclass attributes
+        if hasattr(self.config.video, key):
+            return getattr(self.config.video, key)
+        return default
 
     def load_config(self) -> GCSConfig:
         """Loads configuration from JSON file or returns default if not found."""
@@ -93,13 +111,22 @@ class ConfigManager:
         try:
             with open(self.config_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
+            self.raw_data = data
+
+            # Sync top-level video_source into video section if present
+            video_data = dict(data.get("video", {}))
+            if "video_source" in data and "source" not in video_data:
+                video_data["source"] = data["video_source"]
+            for k in ["webcam_index", "webcam_width", "webcam_height", "yolo_model_path", "yolo_confidence", "rtsp_url"]:
+                if k in data and k not in video_data:
+                    video_data[k] = data[k]
 
             return GCSConfig(
                 general=GeneralConfig(**data.get("general", {})),
                 communication=CommConfig(**data.get("communication", {})),
                 map=MapConfig(**data.get("map", {})),
                 safety=SafetyConfig(**data.get("safety", {})),
-                video=VideoConfig(**data.get("video", {})),
+                video=VideoConfig(**video_data),
                 simulation=SimulationConfig(**data.get("simulation", {})),
             )
         except Exception as e:

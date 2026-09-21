@@ -185,8 +185,9 @@ class GCSServer:
         self.sim_video = DualSimulatedVideoGenerator()
 
         # 5. Live Camera Stream Receiver (OAK-D / IP Webcam)
+        self.webcam_provider = None
         vid_src = self.config.video.source
-        if vid_src and vid_src.lower() != "simulated":
+        if vid_src and vid_src.lower() not in ("simulated", "simulation", "webcam"):
             self.live_camera = LiveCameraReceiver(
                 source=vid_src,
                 target_width=self.config.video.width,
@@ -563,8 +564,12 @@ class GCSServer:
         """12 FPS Dual Video Frame rendering and bounded queue dispatch."""
         while True:
             try:
-                # Check for live camera stream frame (OAK-D / IP Webcam)
-                live_rgb_b64 = self.live_camera.get_latest_frame_b64() if self.live_camera else None
+                # Check for live camera stream frame (Webcam / OAK-D / RTSP)
+                live_rgb_b64 = None
+                if getattr(self, "webcam_provider", None) and self.webcam_provider.is_live:
+                    live_rgb_b64 = self.webcam_provider.get_latest_frame_b64()
+                elif self.live_camera and self.live_camera.is_live:
+                    live_rgb_b64 = self.live_camera.get_latest_frame_b64()
                 has_live_feed = live_rgb_b64 is not None
 
                 if self.is_connected or has_live_feed:

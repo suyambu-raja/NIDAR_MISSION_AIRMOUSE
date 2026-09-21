@@ -1,4 +1,11 @@
 {
+  "video_source": "simulation",
+  "webcam_index": 0,
+  "webcam_width": 640,
+  "webcam_height": 480,
+  "yolo_model_path": "src/backend/detection_node/human_dataset/best.pt",
+  "yolo_confidence": 0.45,
+  "rtsp_url": "rtsp://admin:password@192.168.x.x/stream1",
   "general": {
     "app_name": "NIDAR AirMouse GCS",
     "callsign": "AIRMOUSE-ALPHA",
@@ -32,10 +39,16 @@
     "max_mission_time_seconds": 600
   },
   "video": {
-    "source": "http://100.110.233.117:8080/video",
+    "source": "simulation",
     "fps": 30,
     "width": 640,
-    "height": 480
+    "height": 480,
+    "webcam_index": 0,
+    "webcam_width": 640,
+    "webcam_height": 480,
+    "yolo_model_path": "src/backend/detection_node/human_dataset/best.pt",
+    "yolo_confidence": 0.45,
+    "rtsp_url": "rtsp://admin:password@192.168.x.x/stream1"
   },
   "simulation": {
     "drone_speed_mps": 0.7,

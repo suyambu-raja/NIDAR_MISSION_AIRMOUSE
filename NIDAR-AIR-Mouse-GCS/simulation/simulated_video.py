@@ -76,9 +76,10 @@ class DualSimulatedVideoGenerator:
 
             # Bounding Box & AI Label
             cv2.rectangle(frame, (bx1, by1), (bx2, by2), (0, 230, 118), 2)
+            conf_val = target.get('confidence', target.get('conf', 0.95))
             cv2.putText(
                 frame,
-                f"TARGET {target['id']} | CONF: {int(target['confidence']*100)}%",
+                f"TARGET {target['id']} | CONF: {int(conf_val*100)}%",
                 (bx1, by1 - 8),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.4,
