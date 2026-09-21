@@ -21,9 +21,9 @@ Test categories
 10. PathPlanner      — avoids walls (safety margin)
 11. PathPlanner      — returns None when no path exists (goal in wall)
 12. PathPlanner      — returns single-point when start equals goal
-13. BatteryMonitor   — returns EXPLORE when battery > 30%
-14. BatteryMonitor   — returns RETURN when battery 15-30%
-15. BatteryMonitor   — returns EXIT when battery < 15%
+13. BatteryMonitor   — returns EXPLORE when battery > 25%
+14. BatteryMonitor   — returns RETURN when battery 12-25%
+15. BatteryMonitor   — returns EXIT when battery < 12%
 16. Integration      — full pipeline: map input -> goal pose output
 17. Integration      — exploration stops when 6 survivors found
 
@@ -392,34 +392,34 @@ class TestBatteryMonitor(unittest.TestCase):
     def setUp(self):
         self.monitor = BatteryMonitor()
 
-    def test_explore_when_above_30(self):
-        """Battery > 30% → EXPLORE strategy."""
+    def test_explore_when_above_25(self):
+        """Battery > 25% → EXPLORE strategy."""
         strategy = self.monitor.update(80.0)
         self.assertEqual(strategy, Strategy.EXPLORE)
 
-    def test_explore_at_exactly_31(self):
-        """31% is above threshold → EXPLORE."""
-        strategy = self.monitor.update(31.0)
+    def test_explore_at_exactly_26(self):
+        """26% is above threshold → EXPLORE."""
+        strategy = self.monitor.update(26.0)
         self.assertEqual(strategy, Strategy.EXPLORE)
 
-    def test_return_when_between_15_and_30(self):
-        """20% is between 15 and 30 → RETURN."""
+    def test_return_when_between_12_and_25(self):
+        """20% is between 12 and 25 → RETURN."""
         strategy = self.monitor.update(20.0)
         self.assertEqual(strategy, Strategy.RETURN)
 
-    def test_return_at_exactly_30(self):
-        """Exactly 30% is at the boundary → RETURN (not > 30%)."""
-        strategy = self.monitor.update(30.0)
+    def test_return_at_exactly_25(self):
+        """Exactly 25% is at the boundary → RETURN (not > 25%)."""
+        strategy = self.monitor.update(25.0)
         self.assertEqual(strategy, Strategy.RETURN)
 
-    def test_exit_when_below_15(self):
+    def test_exit_when_below_12(self):
         """10% is critical → EXIT."""
         strategy = self.monitor.update(10.0)
         self.assertEqual(strategy, Strategy.EXIT)
 
-    def test_exit_at_exactly_15(self):
-        """Exactly 15% is at the critical boundary → EXIT (not > 15%)."""
-        strategy = self.monitor.update(15.0)
+    def test_exit_at_exactly_12(self):
+        """Exactly 12% is at the critical boundary → EXIT (not > 12%)."""
+        strategy = self.monitor.update(12.0)
         self.assertEqual(strategy, Strategy.EXIT)
 
     def test_is_critical_flag(self):

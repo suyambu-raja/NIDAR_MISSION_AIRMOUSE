@@ -12,15 +12,15 @@ stop exploring new areas and head back toward the arena exit point.
 
 Three strategies
 ----------------
-EXPLORE  (battery > 30%) — Normal frontier exploration. The drone freely
+EXPLORE  (battery > 25%) — Normal frontier exploration. The drone freely
          picks the highest-utility frontier anywhere in the arena.
 
-RETURN   (15% < battery ≤ 30%) — Bias exploration toward the exit point.
+RETURN   (12% < battery ≤ 25%) — Bias exploration toward the exit point.
          The frontier selector should still find frontiers, but
          exploration_node will inject the exit point as the goal when no
          high-score frontier is close enough to home.
 
-EXIT     (battery ≤ 15%) — Emergency. Ignore all frontiers immediately.
+EXIT     (battery ≤ 12%) — Emergency. Ignore all frontiers immediately.
          Navigate directly to the arena exit point (0.0, 0.0) and land.
          A CRITICAL alert is also sent to /exploration_status.
 
@@ -30,10 +30,10 @@ The arena entry/exit point is always (0.0, 0.0) in the SLAM map frame —
 this is the point where the drone entered the arena and where it must
 return by mission end. The competition organiser recharges the drone here.
 
-Thresholds (from competition logistics planning):
-    > 30%  → sufficient for several more minutes of exploration
-    15-30% → start navigating home before it's too late
-    < 15%  → no time left — abort exploration and exit immediately
+Thresholds (calibrated for 8000mAh 6S LiPo):
+    > 25%  → sufficient for several more minutes of exploration
+    12-25% → start navigating home before it's too late
+    < 12%  → no time left — abort exploration and exit immediately
 """
 
 from enum import Enum, auto
@@ -41,15 +41,19 @@ from enum import Enum, auto
 
 class Strategy(Enum):
     """Exploration strategy determined by battery level."""
-    EXPLORE  = auto()   # > 30%  — full frontier exploration
-    RETURN   = auto()   # 15–30% — bias toward exit, wrap up exploration
-    EXIT     = auto()   # < 15%  — abort, fly to exit immediately
+    EXPLORE  = auto()   # > 25%  — full frontier exploration
+    RETURN   = auto()   # 12–25% — bias toward exit, wrap up exploration
+    EXIT     = auto()   # < 12%  — abort, fly to exit immediately
 
 
-# Battery thresholds (percentage, 0–100)
-NORMAL_THRESHOLD: float = 30.0   # Above this: EXPLORE
-LOW_THRESHOLD:    float = 15.0   # Above this (and ≤ NORMAL): RETURN
-                                  # At or below: EXIT
+# Thresholds calibrated for 8000mAh 6S LiPo battery
+# 8000mAh at 12% = 960mAh remaining
+# Sufficient for safe return from 15x15m arena
+# Previously calibrated for 4500mAh — recalibrated August 2026
+# NOTE: recalibrate again after real discharge tests on hardware
+NORMAL_THRESHOLD: float = 25.0    # battery > 25% = EXPLORE
+LOW_THRESHOLD:    float = 12.0    # battery 12-25% = RETURN
+CRITICAL_THRESHOLD: float = 12.0  # battery < 12% = EXIT
 
 # Arena exit point in SLAM map frame — always the drone's starting position
 EXIT_POINT_X: float = 0.0
