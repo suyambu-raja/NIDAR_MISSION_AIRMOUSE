@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>nidar_bringup</name>
+  <version>1.0.0</version>
+  <description>Comprehensive ROS 2 system bringup launch package for NIDAR AirMouse Search-and-Rescue UAV</description>
+  <maintainer email="info@nidar.aero">NIDAR Autonomy Team</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_python</buildtool_depend>
+
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>slam_node</exec_depend>
+  <exec_depend>mavros_bridge</exec_depend>
+  <exec_depend>detection_node</exec_depend>
+  <exec_depend>tracker_node</exec_depend>
+  <exec_depend>fusion_node</exec_depend>
+  <exec_depend>grid_mapper_node</exec_depend>
+  <exec_depend>corridor_classifier</exec_depend>
+  <exec_depend>exploration_node</exec_depend>
+  <exec_depend>failsafe_node</exec_depend>
+  <exec_depend>mission_manager</exec_depend>
+  <exec_depend>nidar_msgs</exec_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

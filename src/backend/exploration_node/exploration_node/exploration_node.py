@@ -41,7 +41,7 @@ from rclpy.qos import (
 )
 
 # Standard ROS 2 message types
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, Twist
 from nav_msgs.msg import OccupancyGrid, Path
 from sensor_msgs.msg import BatteryState
 from std_msgs.msg import String
@@ -55,6 +55,8 @@ from exploration_node.frontier_grouper  import FrontierGrouper
 from exploration_node.frontier_selector import FrontierSelector
 from exploration_node.path_planner      import PathPlanner
 from exploration_node.battery_monitor   import BatteryMonitor, Strategy
+from exploration_node.dwa_local_planner import DWALocalPlanner
+
 
 
 # =============================================================================
@@ -134,6 +136,7 @@ class ExplorationNode(Node):
         self._selector = FrontierSelector()
         self._planner  = PathPlanner()
         self._battery  = BatteryMonitor()
+        self._dwa      = DWALocalPlanner()
 
         # ------------------------------------------------------------------ #
         # State                                                               #
@@ -171,9 +174,11 @@ class ExplorationNode(Node):
         # ------------------------------------------------------------------ #
         # Publishers                                                          #
         # ------------------------------------------------------------------ #
-        self._goal_pub   = self.create_publisher(PoseStamped, "/goal_pose",           OUTPUT_QOS)
-        self._status_pub = self.create_publisher(String,      "/exploration_status",  OUTPUT_QOS)
-        self._path_pub   = self.create_publisher(Path,        "/planned_path",        OUTPUT_QOS)
+        self._goal_pub    = self.create_publisher(PoseStamped, "/goal_pose",           OUTPUT_QOS)
+        self._cmd_vel_pub = self.create_publisher(Twist,       "/cmd_vel",             POSE_QOS)
+        self._status_pub  = self.create_publisher(String,      "/exploration_status",  OUTPUT_QOS)
+        self._path_pub    = self.create_publisher(Path,        "/planned_path",        OUTPUT_QOS)
+
 
         # ------------------------------------------------------------------ #
         # Timer — runs the exploration pipeline at 1 Hz                      #
@@ -459,6 +464,24 @@ class ExplorationNode(Node):
         self.get_logger().debug(
             f"[{label}] Published /goal_pose: ({x:.2f}, {y:.2f})"
         )
+
+        # Compute and publish local collision-free velocity via DWA
+        if self._latest_pose is not None and self._latest_map is not None:
+            px = float(self._latest_pose.pose.position.x)
+            py = float(self._latest_pose.pose.position.y)
+            ori = self._latest_pose.pose.orientation
+            siny = 2.0 * (ori.w * ori.z + ori.x * ori.y)
+            cosy = 1.0 - 2.0 * (ori.y * ori.y + ori.z * ori.z)
+            drone_yaw = math.atan2(siny, cosy)
+
+            v, omega, brake, clearance = self._dwa.compute_velocity_command(
+                (px, py, drone_yaw), (0.0, 0.0), (x, y), self._latest_map
+            )
+            twist_msg = Twist()
+            twist_msg.linear.x = float(v)
+            twist_msg.angular.z = float(omega)
+            self._cmd_vel_pub.publish(twist_msg)
+
 
     def _publish_path(self, waypoints) -> None:
         """

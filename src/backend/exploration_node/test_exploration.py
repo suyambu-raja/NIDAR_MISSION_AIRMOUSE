@@ -515,6 +515,65 @@ class TestIntegration(unittest.TestCase):
             "Mission should be marked done when all 6 survivors are found")
 
 
+class TestDWALocalPlanner(unittest.TestCase):
+    """Unit tests for DWALocalPlanner trajectory rollout and obstacle avoidance."""
+
+    def setUp(self):
+        from exploration_node.dwa_local_planner import DWALocalPlanner
+        self.dwa = DWALocalPlanner(
+            max_speed=0.8,
+            emergency_brake_dist=0.45,
+            drone_radius=0.25,
+        )
+
+    def test_open_path_generates_forward_velocity(self):
+        """In open space toward waypoint, DWA selects forward velocity."""
+        # 10x10 free map
+        m = MockOccupancyGrid(10, 10, [CELL_FREE] * 100, resolution=1.0, origin_x=0.0, origin_y=0.0)
+        v, omega, brake, clearance = self.dwa.compute_velocity_command(
+            current_pose=(2.0, 2.0, 0.0),
+            current_velocity=(0.0, 0.0),
+            target_waypoint=(6.0, 2.0),
+            occupancy_map=m,
+        )
+        self.assertFalse(brake)
+        self.assertGreater(v, 0.0)
+        self.assertLessEqual(v, 0.8)
+
+    def test_emergency_brake_on_close_obstacle(self):
+        """Obstacle closer than 0.45m must trigger emergency stop."""
+        m = MockOccupancyGrid(10, 10, [CELL_FREE] * 100, resolution=0.1, origin_x=0.0, origin_y=0.0)
+        # Place wall cell at x=0.75m, y=0.55m (row 5, col 7 -> index 57)
+        m.data[5 * 10 + 7] = CELL_OCCUPIED
+
+        # Drone at x=0.55m, y=0.55m (distance = 0.2m < 0.45m)
+        v, omega, brake, clearance = self.dwa.compute_velocity_command(
+            current_pose=(0.55, 0.55, 0.0),
+            current_velocity=(0.2, 0.0),
+            target_waypoint=(0.9, 0.55),
+            occupancy_map=m,
+        )
+        self.assertTrue(brake, "Should activate emergency brake when obstacle < 0.45m")
+        self.assertEqual(v, 0.0)
+        self.assertEqual(omega, 0.0)
+
+
+    def test_velocity_within_bounds(self):
+        """Velocities must stay within configured max limits."""
+        m = MockOccupancyGrid(10, 10, [CELL_FREE] * 100, resolution=0.5, origin_x=0.0, origin_y=0.0)
+        v, omega, brake, clearance = self.dwa.compute_velocity_command(
+            current_pose=(2.0, 2.0, 0.5),
+            current_velocity=(0.4, 0.2),
+            target_waypoint=(2.0, 5.0),
+            occupancy_map=m,
+        )
+        self.assertGreaterEqual(v, 0.0)
+        self.assertLessEqual(v, 0.8)
+        self.assertGreaterEqual(omega, -1.0)
+        self.assertLessEqual(omega, 1.0)
+
+
+
 # =============================================================================
 # Main
 # =============================================================================
@@ -534,7 +593,9 @@ if __name__ == "__main__":
         TestPathPlanner,
         TestBatteryMonitor,
         TestIntegration,
+        TestDWALocalPlanner,
     ]:
+
         suite.addTests(loader.loadTestsFromTestCase(cls))
 
     runner = unittest.TextTestRunner(verbosity=2)

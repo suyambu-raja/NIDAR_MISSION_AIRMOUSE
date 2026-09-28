@@ -275,3 +275,55 @@ if "std_srvs.srv" not in sys.modules:
             def __init__(self): self.success = False; self.message = ""
     std_srv_mod.Trigger = Trigger
     std_srv_mod.SetBool = SetBool
+
+if "nidar_msgs.msg" not in sys.modules:
+    nidar_msgs_mod = _make_stub_module("nidar_msgs.msg")
+
+    class SurvivorDetection:
+        def __init__(self, survivor_id=-1, position=None, confidence=0.0, detection_source="rgb", bbox=None, detection_stamp=None, is_confirmed=False):
+            self.survivor_id = int(survivor_id)
+            self.position = position if position is not None else Point()
+            self.confidence = float(confidence)
+            self.detection_source = str(detection_source)
+            self.bbox = list(bbox) if bbox is not None else [0.0, 0.0, 0.0, 0.0]
+            self.detection_stamp = detection_stamp if detection_stamp is not None else type("TimeMsg", (), {"sec": 0, "nanosec": 0})()
+            self.is_confirmed = bool(is_confirmed)
+
+    class SurvivorArray:
+        def __init__(self, header=None, detections=None):
+            self.header = header if header is not None else Header()
+            self.detections = list(detections) if detections is not None else []
+
+    class SurvivorGridLocation:
+        def __init__(self, survivor_id=-1, grid_box="??", world_x=0.0, world_y=0.0, confidence=0.0):
+            self.survivor_id = int(survivor_id)
+            self.grid_box = str(grid_box)
+            self.world_x = float(world_x)
+            self.world_y = float(world_y)
+            self.confidence = float(confidence)
+
+    class SurvivorGridArray:
+        def __init__(self, header=None, locations=None):
+            self.header = header if header is not None else Header()
+            self.locations = list(locations) if locations is not None else []
+
+    class SpaceClassification:
+        def __init__(self, header=None, space_type="room", confidence=1.0):
+            self.header = header if header is not None else Header()
+            self.space_type = str(space_type)
+            self.confidence = float(confidence)
+
+    class MissionStatus:
+        def __init__(self, header=None, battery_percentage=100.0, time_elapsed_sec=0, survivors_found=0):
+            self.header = header if header is not None else Header()
+            self.battery_percentage = float(battery_percentage)
+            self.time_elapsed_sec = int(time_elapsed_sec)
+            self.survivors_found = int(survivors_found)
+
+    nidar_msgs_mod.SurvivorDetection = SurvivorDetection
+    nidar_msgs_mod.SurvivorArray = SurvivorArray
+    nidar_msgs_mod.SurvivorGridLocation = SurvivorGridLocation
+    nidar_msgs_mod.SurvivorGridArray = SurvivorGridArray
+    nidar_msgs_mod.SpaceClassification = SpaceClassification
+    nidar_msgs_mod.MissionStatus = MissionStatus
+
