@@ -1,42 +1,27 @@
 /**
- * Dual Camera (RGB & Thermal) View Controller for NIDAR AirMouse GCS.
- * Dedicated RGB primary pane in main split and FLIR Thermal in sidebar.
+ * Dual Camera (RGB & Thermal) View Controller for Mission Planner GCS.
+ * Feeds the Payload Tab video viewports and the floating Map PiP window.
  */
 class GCSCameraView {
   constructor() {
     this.rgbImg = document.getElementById("img-rgb-stream");
     this.thermalImg = document.getElementById("img-thermal-stream");
-    this.rgbOverlay = document.getElementById("rgb-overlay-text");
-    this.thermalOverlay = document.getElementById("thermal-overlay-text");
+    this.pipImg = document.getElementById("pip-video-img");
+    this.pipTitle = document.getElementById("pip-title");
+    this.btnPipToggle = document.getElementById("btn-pip-toggle-cam");
+
     this.rgbBadge = document.getElementById("rgb-status-badge");
     this.thermalBadge = document.getElementById("thermal-status-badge");
 
-    this.tabRgb = document.getElementById("tab-btn-rgb");
-    this.tabThermal = document.getElementById("tab-btn-thermal");
-    this.paneRgb = document.getElementById("pane-rgb-feed");
-    this.paneThermal = document.getElementById("pane-thermal-feed");
+    this.activePipCam = "rgb"; // "rgb" or "thermal"
 
-    this._bindTabs();
-  }
-
-  _bindTabs() {
-    if (this.tabRgb && this.tabThermal) {
-      this.tabRgb.addEventListener("click", () => this.switchTab("rgb"));
-      this.tabThermal.addEventListener("click", () => this.switchTab("thermal"));
-    }
-  }
-
-  switchTab(tab) {
-    if (tab === "rgb") {
-      if (this.tabRgb) this.tabRgb.classList.add("active");
-      if (this.tabThermal) this.tabThermal.classList.remove("active");
-      if (this.paneRgb) this.paneRgb.classList.add("active");
-      if (this.paneThermal) this.paneThermal.classList.remove("active");
-    } else {
-      if (this.tabThermal) this.tabThermal.classList.add("active");
-      if (this.tabRgb) this.tabRgb.classList.remove("active");
-      if (this.paneThermal) this.paneThermal.classList.add("active");
-      if (this.paneRgb) this.paneRgb.classList.remove("active");
+    if (this.btnPipToggle) {
+      this.btnPipToggle.addEventListener("click", () => {
+        this.activePipCam = this.activePipCam === "rgb" ? "thermal" : "rgb";
+        if (this.pipTitle) {
+          this.pipTitle.textContent = this.activePipCam === "rgb" ? "FPV: RGB (OAK-D)" : "FPV: FLIR Thermal";
+        }
+      });
     }
   }
 
@@ -47,33 +32,25 @@ class GCSCameraView {
 
     if (camId === "rgb") {
       if (this.rgbImg) this.rgbImg.src = src;
-      if (this.rgbOverlay) this.rgbOverlay.style.display = "none";
       if (this.rgbBadge) {
-        this.rgbBadge.textContent = payload.status === "LIVE" ? "LIVE RGB" : "SIMULATED RGB";
-        this.rgbBadge.className = payload.status === "LIVE" ? "badge-mini badge-live" : "badge-mini badge-sim";
+        this.rgbBadge.textContent = payload.status === "LIVE" ? "LIVE" : "SIM";
+      }
+      if (this.pipImg && this.activePipCam === "rgb") {
+        this.pipImg.src = src;
       }
     } else if (camId === "thermal") {
       if (this.thermalImg) this.thermalImg.src = src;
-      if (this.thermalOverlay) this.thermalOverlay.style.display = "none";
       if (this.thermalBadge) {
-        this.thermalBadge.textContent = payload.status === "LIVE" ? "LIVE THERMAL" : "SIMULATED THERMAL";
-        this.thermalBadge.className = payload.status === "LIVE" ? "badge-mini badge-live" : "badge-mini badge-sim";
+        this.thermalBadge.textContent = payload.status === "LIVE" ? "LIVE" : "SIM";
+      }
+      if (this.pipImg && this.activePipCam === "thermal") {
+        this.pipImg.src = src;
       }
     }
   }
 
-  updateHudTelemetry(hSpeed, vSpeed) {
-    const hsElem = document.getElementById("hud-hs");
-    const vsElem = document.getElementById("hud-vs");
-    if (hsElem) hsElem.textContent = (hSpeed || 0.0).toFixed(1);
-    if (vsElem) vsElem.textContent = (vSpeed || 0.0).toFixed(1);
-  }
-
-  reset() {
-    if (this.rgbImg) this.rgbImg.src = "";
-    if (this.thermalImg) this.thermalImg.src = "";
-    if (this.rgbOverlay) this.rgbOverlay.style.display = "block";
-    if (this.thermalOverlay) this.thermalOverlay.style.display = "block";
+  updateHudTelemetry(velocity, altitude) {
+    // HUD overlays
   }
 }
 

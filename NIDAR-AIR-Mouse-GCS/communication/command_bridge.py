@@ -123,6 +123,34 @@ class CommandBridgeNode(Node if ROS2_AVAILABLE else object):
                 "reset": True,
                 "topics": {"/failsafe/reset": True}
             }
+        elif norm_action in ("SET_MODE", "CHANGE_MODE"):
+            mode = str(params.get("mode", "GUIDED")).upper()
+            return {
+                "action": "SET_MODE",
+                "flight_mode": mode,
+                "topics": {"/mavros/set_mode": mode}
+            }
+        elif norm_action in ("WRITE_WAYPOINTS", "UPLOAD_WAYPOINTS"):
+            return {
+                "action": "WRITE_WAYPOINTS",
+                "waypoints": params.get("waypoints", []),
+                "topics": {"/mavros/mission/push": True}
+            }
+        elif norm_action in ("READ_WAYPOINTS", "DOWNLOAD_WAYPOINTS"):
+            return {
+                "action": "READ_WAYPOINTS",
+                "topics": {"/mavros/mission/pull": True}
+            }
+        elif norm_action in ("CALIBRATE_IMU", "CALIBRATE_COMPASS", "CALIBRATE_RADIO"):
+            return {
+                "action": norm_action,
+                "topics": {"/mavros/cmd/trigger_control": True}
+            }
+        elif norm_action in ("SET_PARAMETERS", "GET_PARAMETERS"):
+            return {
+                "action": norm_action,
+                "topics": {"/mavros/param/param_value": True}
+            }
         elif norm_action in ("CHANGE_SLAM_MODE", "SET_SLAM_MODE"):
             mode = str(params.get("mode", "REALTIME")).upper()
             return {

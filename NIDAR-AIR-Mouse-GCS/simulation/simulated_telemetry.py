@@ -61,6 +61,8 @@ class SimulatedTelemetryProvider(QObject):
         self._battery_a = 0.5
         self._armed = False
         self._flight_mode = "DISARMED"
+        self.target_altitude = 1.25
+        self.home_pose = (1.25, 1.25)
 
         self._mission_state = MissionState.IDLE
         self._is_running = False
@@ -70,6 +72,51 @@ class SimulatedTelemetryProvider(QObject):
         self._timer.setInterval(100)
         self._timer.timeout.connect(self._step_physics)
 
+    def arm(self):
+        """Arms drone motors."""
+        self._armed = True
+        if self._flight_mode == "DISARMED":
+            self._flight_mode = "ARMED"
+
+    def disarm(self):
+        """Disarms drone motors."""
+        self._armed = False
+        self._flight_mode = "DISARMED"
+        self._ground_speed = 0.0
+
+    def takeoff(self, target_alt: float = 2.5):
+        """Commands drone to arm and climb to target altitude."""
+        self._armed = True
+        self.target_altitude = target_alt
+        self._flight_mode = "GUIDED"
+        self.set_mission_state(MissionState.TAKEOFF)
+
+    def land(self):
+        """Commands drone to land at current location."""
+        self._flight_mode = "LAND"
+        self.target_altitude = 0.0
+
+    def set_mode(self, mode: str):
+        """Changes MAVLink / FCU flight mode."""
+        self._flight_mode = mode.upper()
+        if self._flight_mode in ("AUTO", "AUTO_EXPLORE"):
+            if not self._armed:
+                self._armed = True
+            if self._mission_state == MissionState.IDLE or self._mission_state == MissionState.READY:
+                self.set_mission_state(MissionState.EXPLORING)
+
+    def rtl(self):
+        """Commands Return To Launch (Home coordinate)."""
+        self._flight_mode = "RTL"
+        self.waypoints.append(self.home_pose)
+        self._curr_wp_idx = len(self.waypoints) - 1
+
+    def set_waypoints(self, wps: List[Tuple[float, float]]):
+        """Updates autonomous trajectory waypoints."""
+        if wps:
+            self.waypoints = list(wps)
+            self._curr_wp_idx = 0
+
     def set_mission_state(self, state: MissionState):
         """Updates internal flight dynamics based on current mission state."""
         self._mission_state = state
@@ -77,19 +124,25 @@ class SimulatedTelemetryProvider(QObject):
         if state == MissionState.TAKEOFF:
             self._armed = True
             self._flight_mode = "AUTO_TAKEOFF"
+            if not getattr(self, "target_altitude", 0.0):
+                self.target_altitude = 1.25
         elif state in {MissionState.ENTERING, MissionState.EXPLORING, MissionState.SURVIVOR_DETECTED}:
             self._armed = True
             self._flight_mode = "AUTO_EXPLORE"
+            self.target_altitude = 1.25
         elif state == MissionState.EXITING:
             self._armed = True
             self._flight_mode = "AUTO_EXIT"
+            self.target_altitude = 1.25
         elif state == MissionState.MISSION_COMPLETE:
             self._flight_mode = "LANDED"
             self._armed = False
             self._ground_speed = 0.0
+            self.target_altitude = 0.0
         elif state == MissionState.ABORTED:
             self._flight_mode = "EMERGENCY_HOLD"
             self._ground_speed = 0.0
+            self.target_altitude = 0.0
 
     def start(self):
         self._is_running = True
@@ -102,8 +155,8 @@ class SimulatedTelemetryProvider(QObject):
     def reset(self):
         """Resets drone to initial staging coordinate."""
         self._curr_wp_idx = 0
-        self._x = self.waypoints[0][0]
-        self._y = self.waypoints[0][1]
+        self._x = self.waypoints[0][0] if self.waypoints else 1.25
+        self._y = self.waypoints[0][1] if self.waypoints else 1.25
         self._z = 0.0
         self._altitude = 0.0
         self._roll = 0.0
@@ -116,6 +169,7 @@ class SimulatedTelemetryProvider(QObject):
         self._armed = False
         self._flight_mode = "DISARMED"
         self._mission_state = MissionState.IDLE
+        self.target_altitude = 1.25
 
     def _step_physics(self):
         """Advances simulated drone kinematics by dt = 0.1s."""
@@ -132,22 +186,33 @@ class SimulatedTelemetryProvider(QObject):
 
         # Altitude Dynamics
         target_alt = 0.0
-        if self._mission_state in {
+        if self._flight_mode == "LAND":
+            target_alt = 0.0
+        elif self._mission_state in {
             MissionState.TAKEOFF,
             MissionState.ENTERING,
             MissionState.EXPLORING,
             MissionState.SURVIVOR_DETECTED,
             MissionState.EXITING,
         }:
-            target_alt = 1.25  # 1.25m standard indoor cruising altitude
+            target_alt = getattr(self, "target_altitude", 1.25)
         elif self._mission_state == MissionState.ABORTED:
             target_alt = 0.0  # Land on abort
         elif self._mission_state == MissionState.MISSION_COMPLETE:
             target_alt = 0.0  # Land on completion
+        elif self._flight_mode in ("GUIDED", "AUTO", "LOITER", "GUIDED_NOGPS", "ARMED") and self._armed:
+            target_alt = getattr(self, "target_altitude", 1.25)
 
         # Smooth vertical climb/descent
         alt_err = target_alt - self._altitude
         self._altitude += max(-0.6 * dt, min(0.6 * dt, alt_err * 0.5))
+        if self._altitude < 0.02:
+            self._altitude = 0.0
+
+        if self._flight_mode == "LAND" and self._altitude <= 0.05:
+            self._armed = False
+            self._flight_mode = "DISARMED"
+            self._ground_speed = 0.0
         self._z = self._altitude
 
         # Horizontal Trajectory Dynamics (Only during active navigation)

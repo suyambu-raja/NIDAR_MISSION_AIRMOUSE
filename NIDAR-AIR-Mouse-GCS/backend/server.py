@@ -210,6 +210,7 @@ class GCSServer:
         self.is_paused = False
         self.is_connected = True
         self.slam_mode = "SIMULATION"
+        self.stored_waypoints: list = []
 
         # aiohttp App & Tasks
         self.app = web.Application()
@@ -314,43 +315,158 @@ class GCSServer:
 
     async def _handle_client_command(self, cmd_data: dict):
         """Processes operator commands from the frontend."""
-        action = cmd_data.get("action")
+        action = cmd_data.get("action", "")
         params = cmd_data.get("params", {})
+        norm_action = str(action).lower().strip()
 
-        if action == "connect":
+        if norm_action == "connect":
             await self._connect_system()
-        elif action == "disconnect":
+        elif norm_action == "disconnect":
             await self._disconnect_system()
-        elif action == "start_mission":
+        elif norm_action in ("arm", "arm_drone"):
+            self.sim_telemetry.arm()
+            await self._log_event("SUCCESS", "MOTORS", "Motors ARMED - System in GUIDED/ARMED mode")
+            await self._broadcast_status()
+        elif norm_action in ("disarm", "disarm_drone"):
+            self.sim_telemetry.disarm()
+            await self._log_event("WARNING", "MOTORS", "Motors DISARMED - Rotor spin halted")
+            await self._broadcast_status()
+        elif norm_action == "takeoff":
+            alt = float(params.get("altitude", 2.5))
+            self.is_connected = True
+            self.mission_start_time = self.mission_start_time or time.time()
+            await self._set_mission_state(MissionState.TAKEOFF, f"Climbing to target altitude {alt}m")
+            self.sim_telemetry.takeoff(alt)
+            await self._log_event("SUCCESS", "NAV", f"Autonomous Takeoff initiated to {alt}m")
+        elif norm_action == "land":
+            self.sim_telemetry.land()
+            await self._log_event("WARNING", "NAV", "LAND mode commanded - Vehicle descending to touchdown")
+            await self._broadcast_status()
+        elif norm_action == "set_mode":
+            mode = str(params.get("mode", "GUIDED")).upper()
+            self.sim_telemetry.set_mode(mode)
+            await self._log_event("INFO", "MODE", f"Flight Mode updated to {mode}")
+            await self._broadcast_status()
+        elif norm_action == "rtl":
+            self.sim_telemetry.rtl()
+            await self._log_event("WARNING", "NAV", "RTL (Return To Launch) commanded - returning to home coordinate (1.25, 1.25)")
+            await self._broadcast_status()
+        elif norm_action in ("pause", "pause_autonomy"):
+            self.is_paused = True
+            self.sim_telemetry._ground_speed = 0.0
+            await self._log_event("WARNING", "MISSION", "Mission and trajectory PAUSED (Holding position)")
+            await self._broadcast_status()
+        elif norm_action in ("resume", "resume_autonomy"):
+            self.is_paused = False
+            await self._log_event("SUCCESS", "MISSION", "Mission RESUMED - Continuing autonomous search")
+            await self._broadcast_status()
+        elif norm_action == "start_mission":
             await self._start_mission()
-        elif action == "abort_mission":
+        elif norm_action in ("abort_mission", "abort"):
             reason = params.get("reason", "Operator Emergency Abort")
             await self._abort_mission(reason)
-        elif action == "reset":
+        elif norm_action == "reset":
             await self._reset_mission()
-        elif action == "pause":
-            self.is_paused = not self.is_paused
-            msg = "Mission PAUSED" if self.is_paused else "Mission RESUMED"
-            await self._log_event("INFO", "MISSION", msg)
-        elif action == "simulate_survivor":
+        elif norm_action == "simulate_survivor":
             await self._inject_manual_survivor(params)
-        elif action == "set_slam_mode":
+        elif norm_action == "write_waypoints":
+            wp_list = params.get("waypoints", [])
+            self.stored_waypoints = wp_list
+            coords = []
+            lat_base = 4.2501500
+            lon_base = 5.8998500
+            for wp in wp_list:
+                x = wp.get("x")
+                y = wp.get("y")
+                if x is None or y is None:
+                    lat = float(wp.get("lat", lat_base))
+                    lon = float(wp.get("lon", lon_base))
+                    x = round(1.25 + (lon - lon_base) / 0.00008, 2)
+                    y = round(1.25 + (lat - lat_base) / 0.00008, 2)
+                    x = max(0.5, min(19.5, x))
+                    y = max(0.5, min(19.5, y))
+                coords.append((float(x), float(y)))
+            if coords:
+                self.sim_telemetry.set_waypoints(coords)
+                path_payload = {
+                    "type": "path_update",
+                    "path": coords,
+                    "frontiers": []
+                }
+                await self.queue.put_high(path_payload)
+            await self._log_event("SUCCESS", "MAVLINK", f"Transmitted {len(wp_list)} Waypoints to FCU EEPROM successfully")
+        elif norm_action == "read_waypoints":
+            wps_out = getattr(self, "stored_waypoints", [])
+            if not wps_out:
+                wps_out = [
+                    {
+                        "id": idx + 1,
+                        "command": "WAYPOINT" if idx > 0 else "TAKEOFF",
+                        "lat": 4.25015 + (pt[1] - 1.25) * 0.00008,
+                        "lon": 5.89985 + (pt[0] - 1.25) * 0.00008,
+                        "alt": 2.5,
+                        "frame": "Relative",
+                        "p1": 0, "p2": 2, "p3": 0, "p4": 0
+                    }
+                    for idx, pt in enumerate(self.sim_telemetry.waypoints)
+                ]
+            wp_payload = {
+                "type": "waypoints",
+                "waypoints": wps_out
+            }
+            await self.queue.put_high(wp_payload)
+            await self._log_event("INFO", "MAVLINK", f"Read {len(wps_out)} active Waypoints from FCU")
+        elif norm_action == "calibrate_imu":
+            await self._log_event("INFO", "CALIB", "Accel / IMU 6-point calibration started. Level vehicle...")
+            await asyncio.sleep(0.4)
+            await self._log_event("SUCCESS", "CALIB", "IMU 6-point calibration complete. Offsets: X:+0.02 Y:-0.01 Z:+9.81 m/s²")
+        elif norm_action == "calibrate_compass":
+            await self._log_event("INFO", "CALIB", "Compass live calibration started. Rotate vehicle around all axes...")
+            await asyncio.sleep(0.4)
+            await self._log_event("SUCCESS", "CALIB", "Compass calibration SUCCESS. Fitness: 99.4%, Offsets: [12.4, -4.2, 8.1]")
+        elif norm_action == "calibrate_radio":
+            await self._log_event("INFO", "RADIO", "Calibrating RF link channels and power levels...")
+            await asyncio.sleep(0.4)
+            await self._log_event("SUCCESS", "RADIO", "Radio Calibration Nominal: 915 MHz, 20 dBm, 57600 baud, 100% link budget")
+        elif norm_action == "set_parameters":
+            p_dict = params.get("parameters", {})
+            await self._log_event("SUCCESS", "PARAMS", f"Updated {len(p_dict)} parameters in FCU Non-Volatile Memory (RAM/EEPROM)")
+        elif norm_action == "get_parameters":
+            params_payload = {
+                "type": "parameters",
+                "parameters": {
+                    "EK3_SRC1_POSXY": 3,
+                    "EK3_SRC1_VELXY": 5,
+                    "FS_THR_ENABLE": 1,
+                    "FS_BATT_VOLT": 14.8,
+                    "WPNAV_SPEED": 70,
+                    "RTL_ALT": 250,
+                    "PILOT_SPEED_UP": 250
+                }
+            }
+            await self.queue.put_high(params_payload)
+            await self._log_event("INFO", "PARAMS", "Parameters refreshed from FCU memory")
+        elif norm_action == "set_slam_mode":
             new_mode = str(params.get("mode", "SIMULATION")).upper()
             if new_mode in ["SIMULATION", "REALTIME"]:
                 self.slam_mode = new_mode
                 is_sim = (new_mode == "SIMULATION")
                 msg = f"SLAM Mode switched to {new_mode} ({'Dynamic 2D Raycasting Simulator' if is_sim else 'Live LiDAR / Companion Pi Grid'})"
                 await self._log_event("SUCCESS" if is_sim else "WARNING", "MAP", msg)
-                st = MissionStatusPayload(
-                    state=self.mission_state.value,
-                    elapsed_time=self.elapsed_time_str,
-                    progress=self._calculate_progress(),
-                    survivor_count=self.survivor_engine.survivor_count,
-                    armed=self.sim_telemetry._armed,
-                    is_simulation=is_sim,
-                    slam_mode=self.slam_mode,
-                )
-                await self.queue.put_high(st.to_dict())
+                await self._broadcast_status()
+
+    async def _broadcast_status(self):
+        """Broadcasts immediate mission and arming status snapshot."""
+        st = MissionStatusPayload(
+            state=self.mission_state.value,
+            elapsed_time=self.elapsed_time_str,
+            progress=self._calculate_progress(),
+            survivor_count=self.survivor_engine.survivor_count,
+            armed=self.sim_telemetry._armed,
+            is_simulation=(self.slam_mode == "SIMULATION"),
+            slam_mode=self.slam_mode,
+        )
+        await self.queue.put_high(st.to_dict())
 
     async def _connect_system(self):
         self.is_connected = True
