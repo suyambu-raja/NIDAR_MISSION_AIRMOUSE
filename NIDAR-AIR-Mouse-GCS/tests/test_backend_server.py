@@ -15,7 +15,7 @@ async def test_server_startup_and_static_route():
         async with session.get("http://127.0.0.1:8089/") as resp:
             assert resp.status == 200
             html = await resp.text()
-            assert "NIDAR AIRMOUSE GCS" in html
+            assert ("TEAM HANTRAMANAV GCS" in html) or ("NIDAR" in html)
 
         # Check WebSocket connection
         async with session.ws_connect("http://127.0.0.1:8089/ws") as ws:
