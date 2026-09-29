@@ -17,16 +17,40 @@ document.addEventListener("DOMContentLoaded", () => {
   const controls = new GCSControls(wsClient, mapRenderer, survivorManager);
   window._gcsControls = controls;
 
+  // 2. Initialize Mission Planner Feature Pack (Audio, Tuning, Calibration)
+  const mpFeatures = new MissionPlannerFeatureManager(wsClient);
+  window._mpFeatures = mpFeatures;
+
   // UI Badges & Elements
   const missionBadge = document.getElementById("mission-badge");
   const radioBadge = document.getElementById("radio-badge");
   const flightModeBadge = document.getElementById("flight-mode-badge");
+
+  let lastArmed = null;
+  let lastFlightMode = null;
 
   // Telemetry Packets (10 Hz)
   wsClient.on("telemetry", (telem) => {
     mapRenderer.updateDronePose(telem.x, telem.y, telem.heading);
     telemetryView.updateTelemetry(telem);
     cameraView.updateHudTelemetry(telem.velocity, telem.altitude);
+    mpFeatures.recordTelemetrySample(telem);
+
+    // Audio status callouts for Armed state
+    if (telem.armed !== undefined && telem.armed !== lastArmed) {
+      if (lastArmed !== null) {
+        mpFeatures.speak(telem.armed ? "Armed" : "Disarmed");
+      }
+      lastArmed = telem.armed;
+    }
+
+    // Audio status callouts for Flight Mode
+    if (telem.flight_mode && telem.flight_mode !== lastFlightMode) {
+      if (lastFlightMode !== null) {
+        mpFeatures.speak(`Flight mode: ${telem.flight_mode}`);
+      }
+      lastFlightMode = telem.flight_mode;
+    }
   });
 
   // 2D Dynamic SLAM & Search Grid Map Updates (5 Hz)
@@ -77,10 +101,22 @@ document.addEventListener("DOMContentLoaded", () => {
   wsClient.on("survivor_detected", (surv) => {
     survivorManager.addOrUpdateSurvivor(surv);
     mapRenderer.addSurvivor(surv);
+    mpFeatures.speak("Warning: Autonomous survivor detected");
   });
   wsClient.on("survivor_update", (surv) => {
     survivorManager.addOrUpdateSurvivor(surv);
     mapRenderer.addSurvivor(surv);
+  });
+
+  // Parameters Sync from FCU
+  wsClient.on("parameters", (paramData) => {
+    if (paramData && paramData.parameters && window._mpFeatures) {
+      const pObj = paramData.parameters;
+      Object.keys(pObj).forEach(k => {
+        window._mpFeatures.updateParam(k, String(pObj[k]));
+      });
+      window._mpFeatures._renderParamTable();
+    }
   });
 
   // Dual Video Frames (12 FPS)

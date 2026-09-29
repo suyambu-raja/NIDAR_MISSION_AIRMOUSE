@@ -315,8 +315,10 @@ class GCSServer:
 
     async def _handle_client_command(self, cmd_data: dict):
         """Processes operator commands from the frontend."""
-        action = cmd_data.get("action", "")
-        params = cmd_data.get("params", {})
+        action = cmd_data.get("action") or cmd_data.get("command") or ""
+        params = cmd_data.get("params")
+        if params is None or not isinstance(params, dict):
+            params = {k: v for k, v in cmd_data.items() if k not in ("action", "command", "type")}
         norm_action = str(action).lower().strip()
 
         if norm_action == "connect":
@@ -441,11 +443,39 @@ class GCSServer:
                     "FS_BATT_VOLT": 14.8,
                     "WPNAV_SPEED": 70,
                     "RTL_ALT": 250,
-                    "PILOT_SPEED_UP": 250
+                    "PILOT_SPEED_UP": 250,
+                    "BATT_CAPACITY": 5200,
+                    "MOT_SPIN_ARM": 0.15,
+                    "INS_GYRO_FILTER": 20,
+                    "ATC_RAT_RLL_P": 0.135,
+                    "ATC_RAT_RLL_I": 0.090,
+                    "ATC_RAT_RLL_D": 0.0036,
+                    "ATC_RAT_PIT_P": 0.135,
+                    "ATC_RAT_PIT_I": 0.090,
+                    "ATC_RAT_PIT_D": 0.0036
                 }
             }
             await self.queue.put_high(params_payload)
             await self._log_event("INFO", "PARAMS", "Parameters refreshed from FCU memory")
+        elif norm_action in ("reboot_autopilot", "reboot_fcu"):
+            await self._log_event("WARNING", "SYS", "MAVLink command PREFLIGHT_REBOOT_SHUTDOWN dispatched")
+            await asyncio.sleep(0.5)
+            await self._log_event("SUCCESS", "SYS", "Autopilot reboot complete. Bootloader nominal.")
+            await self._connect_system()
+        elif norm_action in ("drop_payload", "trigger_servo"):
+            pin = params.get("pin", 9)
+            pwm = params.get("pwm", 1900)
+            await self._log_event("SUCCESS", "PAYLOAD", f"Servo channel {pin} triggered at {pwm}us: First-aid payload deployed!")
+        elif norm_action == "set_speed":
+            spd = float(params.get("speed", 0.7))
+            self.sim_telemetry.speed_mps = spd
+            await self._log_event("INFO", "NAV", f"Exploration cruising speed set to {spd} m/s")
+        elif norm_action == "set_return_alt":
+            alt = float(params.get("alt", 2.5))
+            await self._log_event("INFO", "NAV", f"RTL return altitude configured to {alt} m")
+        elif norm_action == "save_flight_modes":
+            modes = params.get("modes", [])
+            await self._log_event("SUCCESS", "FCU", f"Saved 6-position flight modes to EEPROM: {', '.join(modes)}")
         elif norm_action == "set_slam_mode":
             new_mode = str(params.get("mode", "SIMULATION")).upper()
             if new_mode in ["SIMULATION", "REALTIME"]:

@@ -524,28 +524,6 @@ class GCSControls {
         alert(`🚁 [TEAM HANTRAMANAV GCS] Selected Vehicle Platform:\n${vehName}\nReady for firmware flashing / configuration.`);
       });
     });
-
-    const setupItems = document.querySelectorAll(".setup-nav-item");
-    setupItems.forEach(item => {
-      item.addEventListener("click", () => {
-        setupItems.forEach(i => i.classList.remove("active"));
-        item.classList.add("active");
-        const sub = item.getAttribute("data-sub");
-        if (sub === "calibration") {
-          const choice = prompt(
-            "Select Sensor Calibration for TEAM HANTRAMANAV:\n1 = Accel / IMU 6-Point\n2 = Live Compass\n3 = RF Radio Link",
-            "1"
-          );
-          if (choice === "1") {
-            this.ws.send("calibrate_imu");
-          } else if (choice === "2") {
-            this.ws.send("calibrate_compass");
-          } else if (choice === "3") {
-            this.ws.send("calibrate_radio");
-          }
-        }
-      });
-    });
   }
 
   /* ========================================================================

@@ -93,6 +93,12 @@
           </svg>
           <span class="mp-tool-label">HELP</span>
         </button>
+
+        <!-- Voice Alerts Speech Toggle -->
+        <button id="btn-voice-toggle" class="mp-tool-btn" title="Toggle Mission Planner Voice Announcements">
+          <span style="font-size:18px; line-height:1;">🔊</span>
+          <span class="mp-tool-label" style="color:#39e75f;">Voice: ON</span>
+        </button>
       </nav>
 
       <!-- Ribbon Right: TEAM HANTRAMANAV GCS Brand & Serial Link Controls -->
@@ -213,9 +219,14 @@
                   <button id="btn-land" class="mp-btn mp-btn-orange">LAND</button>
                   <button id="btn-auto" class="mp-btn mp-btn-cyan">AUTO MODE</button>
                   <button id="btn-guided" class="mp-btn mp-btn-cyan">GUIDED MODE</button>
+                  <button id="btn-loiter" class="mp-btn mp-btn-yellow">LOITER MODE</button>
                   <button id="btn-rtl" class="mp-btn mp-btn-yellow">RTL (RETURN)</button>
                   <button id="btn-pause" class="mp-btn mp-btn-gray">PAUSE</button>
                   <button id="btn-resume" class="mp-btn mp-btn-gray">RESUME</button>
+                  <button id="btn-set-speed" class="mp-btn mp-btn-gray">SET SPEED</button>
+                  <button id="btn-set-alt" class="mp-btn mp-btn-gray">SET RTL ALT</button>
+                  <button id="btn-drop-payload" class="mp-btn mp-btn-purple">🎁 DROP RESCUE KIT</button>
+                  <button id="btn-reboot-fcu" class="mp-btn mp-btn-danger">🔄 REBOOT FCU</button>
                   <button id="btn-start-mission" class="mp-btn mp-btn-glow">▶ START MISSION</button>
                   <button id="btn-abort-mission" class="mp-btn mp-btn-danger">🛑 EMERGENCY ABORT</button>
                   <button id="btn-sim-survivor" class="mp-btn mp-btn-purple">🎯 INJECT SURVIVOR</button>
@@ -255,15 +266,16 @@
 
               <!-- 5. PREFLIGHT TAB -->
               <div id="tab-preflight" class="mp-tab-pane">
+                <div id="preflight-overall-status" class="preflight-banner">⚠️ PRE-FLIGHT VERIFICATION IN PROGRESS</div>
                 <div class="mp-preflight-list">
-                  <div class="preflight-item"><span>IMU (ICM-42688)</span><span id="health-imu" class="tag-ok">PASSED (200Hz)</span></div>
-                  <div class="preflight-item"><span>Optical Flow</span><span id="health-flow" class="tag-ok">PASSED (50Hz)</span></div>
-                  <div class="preflight-item"><span>Rangefinder (ToF)</span><span id="health-range" class="tag-ok">PASSED (20Hz)</span></div>
-                  <div class="preflight-item"><span>2D LiDAR (A2M8)</span><span id="health-lidar" class="tag-ok">PASSED (10Hz)</span></div>
-                  <div class="preflight-item"><span>OAK-D RGB Camera</span><span id="health-rgb" class="tag-ok">ONLINE</span></div>
-                  <div class="preflight-item"><span>FLIR Thermal</span><span id="health-thermal" class="tag-ok">ONLINE</span></div>
-                  <div class="preflight-item"><span>MAVLink Connection</span><span id="health-fcu" class="tag-ok">CONNECTED</span></div>
-                  <div class="preflight-item"><span>ROS 2 DDS Bridge</span><span id="health-ros2" class="tag-ok">ACTIVE</span></div>
+                  <label class="preflight-item"><input type="checkbox" class="preflight-checkbox" checked> <span>IMU &amp; Gyro (ICM-42688)</span><span id="health-imu" class="tag-ok">CALIBRATED</span></label>
+                  <label class="preflight-item"><input type="checkbox" class="preflight-checkbox" checked> <span>Optical Flow Sensor</span><span id="health-flow" class="tag-ok">PASSED (50Hz)</span></label>
+                  <label class="preflight-item"><input type="checkbox" class="preflight-checkbox" checked> <span>Rangefinder (ToF Alt)</span><span id="health-range" class="tag-ok">PASSED (20Hz)</span></label>
+                  <label class="preflight-item"><input type="checkbox" class="preflight-checkbox" checked> <span>2D LiDAR (RPLIDAR A2M8)</span><span id="health-lidar" class="tag-ok">HEALTHY</span></label>
+                  <label class="preflight-item"><input type="checkbox" class="preflight-checkbox" checked> <span>OAK-D RGB &amp; FLIR Thermal</span><span id="health-rgb" class="tag-ok">ONLINE</span></label>
+                  <label class="preflight-item"><input type="checkbox" class="preflight-checkbox" checked> <span>Battery Voltage &gt; 14.8V</span><span class="tag-ok">16.6V OK</span></label>
+                  <label class="preflight-item"><input type="checkbox" class="preflight-checkbox" checked> <span>Geofence &amp; RTL Failsafe</span><span class="tag-ok">CONFIGURED</span></label>
+                  <label class="preflight-item"><input type="checkbox" class="preflight-checkbox"> <span>Arena Corridor Cleared</span><span class="tag-pending">PENDING</span></label>
                 </div>
               </div>
 
@@ -404,6 +416,7 @@
             <div class="plan-dist-readout">Distance: <span id="plan-total-dist">0.0000 km</span></div>
             <div class="plan-quick-btns">
               <button id="btn-plan-home" class="plan-tool-btn">Home</button>
+              <button id="btn-plan-survey-modal" class="plan-tool-btn" style="background:#65a30d; color:#fff;" title="Auto Survey / Search Grid Generator">⚡ Auto Grid</button>
               <button id="btn-plan-polygon" class="plan-tool-btn" title="Draw Geofence Polygon">⬡</button>
               <button id="btn-plan-search" class="plan-tool-btn" title="Search Location">🔍</button>
             </div>
@@ -524,145 +537,288 @@
         <aside id="setup-sidebar">
           <ul class="setup-nav-list">
             <li class="setup-nav-item active" data-sub="install-firmware">Install Firmware</li>
-            <li class="setup-nav-item" data-sub="firmware-legacy">Install Firmware Legacy</li>
-            <li class="setup-nav-item" data-sub="secure">Secure</li>
-            <li class="setup-nav-item" data-sub="opt-hardware">&gt;&gt; Optional Hardware</li>
-            <li class="setup-nav-item" data-sub="advanced">&gt;&gt; Advanced</li>
-            <li class="setup-nav-item" data-sub="calibration">&gt;&gt; Accel / Compass Calibration</li>
+            <li class="setup-nav-item" data-sub="accel-calib">&gt;&gt; Accel Calibration</li>
+            <li class="setup-nav-item" data-sub="compass-calib">&gt;&gt; Compass Calibration</li>
+            <li class="setup-nav-item" data-sub="radio-calib">&gt;&gt; Radio Calibration</li>
+            <li class="setup-nav-item" data-sub="flight-modes">&gt;&gt; Flight Modes</li>
+            <li class="setup-nav-item" data-sub="failsafe">&gt;&gt; FailSafe &amp; Battery</li>
           </ul>
         </aside>
 
-        <!-- Setup Main Grid (Vehicle Firmware Models from Screenshot 3) -->
+        <!-- Setup Main Content -->
         <main id="setup-main-content">
-          <div class="setup-grid">
 
-            <!-- Vehicle 1: Rover -->
-            <div class="setup-vehicle-card" data-vehicle="rover">
-              <div class="veh-icon-box">
-                <!-- Rover Wireframe SVG -->
-                <svg viewBox="0 0 100 70" class="veh-svg">
-                  <rect x="20" y="20" width="60" height="25" fill="none" stroke="#00e5ff" stroke-width="3" rx="4"/>
-                  <circle cx="25" cy="50" r="14" fill="#00e5ff" stroke="#333" stroke-width="2"/>
-                  <circle cx="75" cy="50" r="14" fill="#00e5ff" stroke="#333" stroke-width="2"/>
-                </svg>
+          <!-- 1. Install Firmware Subpanel -->
+          <div id="panel-install-firmware" class="setup-subpanel">
+            <div class="setup-grid">
+
+              <!-- Vehicle 1: Rover -->
+              <div class="setup-vehicle-card" data-vehicle="rover">
+                <div class="veh-icon-box">
+                  <svg viewBox="0 0 100 70" class="veh-svg">
+                    <rect x="20" y="20" width="60" height="25" fill="none" stroke="#00e5ff" stroke-width="3" rx="4"/>
+                    <circle cx="25" cy="50" r="14" fill="#00e5ff" stroke="#333" stroke-width="2"/>
+                    <circle cx="75" cy="50" r="14" fill="#00e5ff" stroke="#333" stroke-width="2"/>
+                  </svg>
+                </div>
+                <div class="veh-title">Rover V4.7.1 OFFICIAL</div>
               </div>
-              <div class="veh-title">Rover V4.7.1 OFFICIAL</div>
+
+              <!-- Vehicle 2: Plane -->
+              <div class="setup-vehicle-card" data-vehicle="plane">
+                <div class="veh-icon-box">
+                  <svg viewBox="0 0 100 70" class="veh-svg">
+                    <path d="M50 10 L54 30 L95 38 L95 44 L54 42 L54 58 L68 64 L68 68 L50 66 L32 68 L32 64 L46 58 L46 42 L5 44 L5 38 L46 30 Z" fill="#00e5ff"/>
+                  </svg>
+                </div>
+                <div class="veh-title">Plane V4.7.1 OFFICIAL</div>
+              </div>
+
+              <!-- Vehicle 3: NIDAR M2 Rescue Copter (Active Default) -->
+              <div class="setup-vehicle-card active" data-vehicle="copter-quad">
+                <div class="veh-icon-box">
+                  <svg viewBox="0 0 100 70" class="veh-svg">
+                    <circle cx="50" cy="35" r="10" fill="none" stroke="#39e75f" stroke-width="3"/>
+                    <line x1="28" y1="18" x2="72" y2="52" stroke="#39e75f" stroke-width="3"/>
+                    <line x1="28" y1="52" x2="72" y2="18" stroke="#39e75f" stroke-width="3"/>
+                    <circle cx="28" cy="18" r="8" fill="none" stroke="#00e5ff" stroke-width="2.5"/>
+                    <circle cx="72" cy="18" r="8" fill="none" stroke="#00e5ff" stroke-width="2.5"/>
+                    <circle cx="28" cy="52" r="8" fill="none" stroke="#00e5ff" stroke-width="2.5"/>
+                    <circle cx="72" cy="52" r="8" fill="none" stroke="#00e5ff" stroke-width="2.5"/>
+                  </svg>
+                </div>
+                <div class="veh-title" style="color:#39e75f; font-weight:bold;">TEAM HANTRAMANAV M2 (Copter V4.7.1)</div>
+              </div>
+
+              <!-- Vehicle 4: Hexacopter -->
+              <div class="setup-vehicle-card" data-vehicle="copter-hexa">
+                <div class="veh-icon-box">
+                  <svg viewBox="0 0 100 70" class="veh-svg">
+                    <circle cx="50" cy="35" r="8" fill="none" stroke="#00e5ff" stroke-width="2.5"/>
+                    <circle cx="50" cy="12" r="6" fill="none" stroke="#00e5ff" stroke-width="2"/>
+                    <circle cx="50" cy="58" r="6" fill="none" stroke="#00e5ff" stroke-width="2"/>
+                    <circle cx="25" cy="23" r="6" fill="none" stroke="#00e5ff" stroke-width="2"/>
+                    <circle cx="75" cy="23" r="6" fill="none" stroke="#00e5ff" stroke-width="2"/>
+                    <circle cx="25" cy="47" r="6" fill="none" stroke="#00e5ff" stroke-width="2"/>
+                    <circle cx="75" cy="47" r="6" fill="none" stroke="#00e5ff" stroke-width="2"/>
+                  </svg>
+                </div>
+                <div class="veh-title">Copter V4.7.1 (Hexa)</div>
+              </div>
+
+              <!-- Vehicle 5: Y6 Copter -->
+              <div class="setup-vehicle-card" data-vehicle="copter-y6">
+                <div class="veh-icon-box">
+                  <svg viewBox="0 0 100 70" class="veh-svg">
+                    <circle cx="50" cy="35" r="8" fill="none" stroke="#00e5ff" stroke-width="2.5"/>
+                    <line x1="50" y1="35" x2="50" y2="10" stroke="#00e5ff" stroke-width="3"/>
+                    <line x1="50" y1="35" x2="25" y2="55" stroke="#00e5ff" stroke-width="3"/>
+                    <line x1="50" y1="35" x2="75" y2="55" stroke="#00e5ff" stroke-width="3"/>
+                  </svg>
+                </div>
+                <div class="veh-title">Copter V4.7.1 (Y6)</div>
+              </div>
+
+              <!-- Vehicle 6: Sub / UUV -->
+              <div class="setup-vehicle-card" data-vehicle="sub">
+                <div class="veh-icon-box">
+                  <svg viewBox="0 0 100 70" class="veh-svg">
+                    <rect x="25" y="15" width="20" height="40" fill="#00e5ff" rx="4"/>
+                    <rect x="55" y="15" width="20" height="40" fill="#00e5ff" rx="4"/>
+                    <rect x="42" y="25" width="16" height="20" fill="#f39c12"/>
+                  </svg>
+                </div>
+                <div class="veh-title">Sub V4.7.1 OFFICIAL</div>
+              </div>
+
+              <!-- Vehicle 7: Antenna Tracker -->
+              <div class="setup-vehicle-card" data-vehicle="tracker">
+                <div class="veh-icon-box">
+                  <svg viewBox="0 0 100 70" class="veh-svg">
+                    <path d="M30 45 C30 20, 50 15, 65 25" fill="none" stroke="#39e75f" stroke-width="4"/>
+                    <polygon points="40,55 60,55 50,40" fill="#39e75f"/>
+                  </svg>
+                </div>
+                <div class="veh-title">AntennaTracker V4.7.1</div>
+              </div>
+
+              <!-- Vehicle 8: Helicopter -->
+              <div class="setup-vehicle-card" data-vehicle="heli">
+                <div class="veh-icon-box">
+                  <svg viewBox="0 0 100 70" class="veh-svg">
+                    <ellipse cx="50" cy="40" rx="25" ry="14" fill="none" stroke="#00e5ff" stroke-width="2.5"/>
+                    <line x1="15" y1="20" x2="85" y2="20" stroke="#00e5ff" stroke-width="3"/>
+                    <line x1="50" y1="20" x2="50" y2="30" stroke="#00e5ff" stroke-width="3"/>
+                  </svg>
+                </div>
+                <div class="veh-title">Copter V4.7.1 (Heli)</div>
+              </div>
+
+              <!-- Vehicle 9: Cube Autopilot Hardware -->
+              <div class="setup-vehicle-card" data-vehicle="cube">
+                <div class="veh-icon-box">
+                  <svg viewBox="0 0 100 70" class="veh-svg">
+                    <rect x="30" y="15" width="40" height="40" fill="#181818" stroke="#f39c12" stroke-width="3" rx="3"/>
+                    <text x="50" y="38" fill="#ffffff" font-size="10" font-weight="bold" text-anchor="middle">Cube</text>
+                  </svg>
+                </div>
+                <div class="veh-title">Pixhawk 6C / Cube</div>
+              </div>
+
             </div>
 
-            <!-- Vehicle 2: Plane -->
-            <div class="setup-vehicle-card" data-vehicle="plane">
-              <div class="veh-icon-box">
-                <svg viewBox="0 0 100 70" class="veh-svg">
-                  <path d="M50 10 L54 30 L95 38 L95 44 L54 42 L54 58 L68 64 L68 68 L50 66 L32 68 L32 64 L46 58 L46 42 L5 44 L5 38 L46 30 Z" fill="#00e5ff"/>
-                </svg>
+            <footer class="setup-footer-bar">
+              <span class="sf-status">Status: Ready to upload firmware</span>
+              <div class="sf-links">
+                <a href="#" onclick="alert('Checking ArduPilot official firmware repository...'); return false;">All Options</a> |
+                <a href="#" onclick="alert('Bootloader up-to-date (v5.2)'); return false;">Bootloader Update</a> |
+                <a href="#" onclick="alert('Forced bootloader mode enabled.'); return false;">Force Bootloader</a> |
+                <a href="#" onclick="alert('Select custom .apj or .bin firmware file'); return false;">Load custom firmware</a> |
+                <a href="#" onclick="alert('Beta firmware channel active.'); return false;">Beta firmwares</a>
               </div>
-              <div class="veh-title">Plane V4.7.1 OFFICIAL</div>
-            </div>
-
-            <!-- Vehicle 3: NIDAR M2 Rescue Copter (Active Default) -->
-            <div class="setup-vehicle-card active" data-vehicle="copter-quad">
-              <div class="veh-icon-box">
-                <svg viewBox="0 0 100 70" class="veh-svg">
-                  <circle cx="50" cy="35" r="10" fill="none" stroke="#39e75f" stroke-width="3"/>
-                  <line x1="28" y1="18" x2="72" y2="52" stroke="#39e75f" stroke-width="3"/>
-                  <line x1="28" y1="52" x2="72" y2="18" stroke="#39e75f" stroke-width="3"/>
-                  <circle cx="28" cy="18" r="8" fill="none" stroke="#00e5ff" stroke-width="2.5"/>
-                  <circle cx="72" cy="18" r="8" fill="none" stroke="#00e5ff" stroke-width="2.5"/>
-                  <circle cx="28" cy="52" r="8" fill="none" stroke="#00e5ff" stroke-width="2.5"/>
-                  <circle cx="72" cy="52" r="8" fill="none" stroke="#00e5ff" stroke-width="2.5"/>
-                </svg>
-              </div>
-              <div class="veh-title" style="color:#39e75f; font-weight:bold;">TEAM HANTRAMANAV M2 (Copter V4.7.1)</div>
-            </div>
-
-            <!-- Vehicle 4: Hexacopter -->
-            <div class="setup-vehicle-card" data-vehicle="copter-hexa">
-              <div class="veh-icon-box">
-                <svg viewBox="0 0 100 70" class="veh-svg">
-                  <circle cx="50" cy="35" r="8" fill="none" stroke="#00e5ff" stroke-width="2.5"/>
-                  <circle cx="50" cy="12" r="6" fill="none" stroke="#00e5ff" stroke-width="2"/>
-                  <circle cx="50" cy="58" r="6" fill="none" stroke="#00e5ff" stroke-width="2"/>
-                  <circle cx="25" cy="23" r="6" fill="none" stroke="#00e5ff" stroke-width="2"/>
-                  <circle cx="75" cy="23" r="6" fill="none" stroke="#00e5ff" stroke-width="2"/>
-                  <circle cx="25" cy="47" r="6" fill="none" stroke="#00e5ff" stroke-width="2"/>
-                  <circle cx="75" cy="47" r="6" fill="none" stroke="#00e5ff" stroke-width="2"/>
-                </svg>
-              </div>
-              <div class="veh-title">Copter V4.7.1 (Hexa)</div>
-            </div>
-
-            <!-- Vehicle 5: Y6 Copter -->
-            <div class="setup-vehicle-card" data-vehicle="copter-y6">
-              <div class="veh-icon-box">
-                <svg viewBox="0 0 100 70" class="veh-svg">
-                  <circle cx="50" cy="35" r="8" fill="none" stroke="#00e5ff" stroke-width="2.5"/>
-                  <line x1="50" y1="35" x2="50" y2="10" stroke="#00e5ff" stroke-width="3"/>
-                  <line x1="50" y1="35" x2="25" y2="55" stroke="#00e5ff" stroke-width="3"/>
-                  <line x1="50" y1="35" x2="75" y2="55" stroke="#00e5ff" stroke-width="3"/>
-                </svg>
-              </div>
-              <div class="veh-title">Copter V4.7.1 (Y6)</div>
-            </div>
-
-            <!-- Vehicle 6: Sub / UUV -->
-            <div class="setup-vehicle-card" data-vehicle="sub">
-              <div class="veh-icon-box">
-                <svg viewBox="0 0 100 70" class="veh-svg">
-                  <rect x="25" y="15" width="20" height="40" fill="#00e5ff" rx="4"/>
-                  <rect x="55" y="15" width="20" height="40" fill="#00e5ff" rx="4"/>
-                  <rect x="42" y="25" width="16" height="20" fill="#f39c12"/>
-                </svg>
-              </div>
-              <div class="veh-title">Sub V4.7.1 OFFICIAL</div>
-            </div>
-
-            <!-- Vehicle 7: Antenna Tracker -->
-            <div class="setup-vehicle-card" data-vehicle="tracker">
-              <div class="veh-icon-box">
-                <svg viewBox="0 0 100 70" class="veh-svg">
-                  <path d="M30 45 C30 20, 50 15, 65 25" fill="none" stroke="#39e75f" stroke-width="4"/>
-                  <polygon points="40,55 60,55 50,40" fill="#39e75f"/>
-                </svg>
-              </div>
-              <div class="veh-title">AntennaTracker V4.7.1</div>
-            </div>
-
-            <!-- Vehicle 8: Helicopter -->
-            <div class="setup-vehicle-card" data-vehicle="heli">
-              <div class="veh-icon-box">
-                <svg viewBox="0 0 100 70" class="veh-svg">
-                  <ellipse cx="50" cy="40" rx="25" ry="14" fill="none" stroke="#00e5ff" stroke-width="2.5"/>
-                  <line x1="15" y1="20" x2="85" y2="20" stroke="#00e5ff" stroke-width="3"/>
-                  <line x1="50" y1="20" x2="50" y2="30" stroke="#00e5ff" stroke-width="3"/>
-                </svg>
-              </div>
-              <div class="veh-title">Copter V4.7.1 (Heli)</div>
-            </div>
-
-            <!-- Vehicle 9: Cube Autopilot Hardware -->
-            <div class="setup-vehicle-card" data-vehicle="cube">
-              <div class="veh-icon-box">
-                <svg viewBox="0 0 100 70" class="veh-svg">
-                  <rect x="30" y="15" width="40" height="40" fill="#181818" stroke="#f39c12" stroke-width="3" rx="3"/>
-                  <text x="50" y="38" fill="#ffffff" font-size="10" font-weight="bold" text-anchor="middle">Cube</text>
-                </svg>
-              </div>
-              <div class="veh-title">Pixhawk 6C / Cube</div>
-            </div>
-
+            </footer>
           </div>
 
-          <!-- Bottom Setup Status Bar (From Screenshot 3) -->
-          <footer class="setup-footer-bar">
-            <span class="sf-status">Status: Ready to upload firmware</span>
-            <div class="sf-links">
-              <a href="#">All Options</a> |
-              <a href="#">Bootloader Update</a> |
-              <a href="#">Force Bootloader</a> |
-              <a href="#">Load custom firmware</a> |
-              <a href="#">Beta firmwares</a>
+          <!-- 2. Accel Calibration Subpanel -->
+          <div id="panel-accel-calib" class="setup-subpanel hidden">
+            <div class="calib-card">
+              <div class="calib-header">
+                <h3>🧭 Accelerometer 6-Point Calibration Wizard</h3>
+                <span class="calib-chip">IMU: ICM-42688 (200 Hz)</span>
+              </div>
+              <p class="calib-desc">Calibrates the 3-axis accelerometer by sampling 6 distinct vehicle orientations. Keep the vehicle completely stationary during each measurement.</p>
+              
+              <div class="calib-box-display">
+                <div class="calib-orientation-diagram">
+                  <div class="calib-drone-cube">
+                    <span>DRONE FCU</span>
+                  </div>
+                </div>
+                <div class="calib-instructions-box">
+                  <div id="accel-step-instruction" class="calib-step-text">1/6: Place vehicle completely LEVEL on ground and click 'Done'.</div>
+                  <div class="calib-progress-track">
+                    <div id="accel-calib-progress" class="calib-progress-fill" style="width: 16%;"></div>
+                  </div>
+                  <button id="btn-accel-next-step" class="mp-btn mp-btn-green" style="padding: 10px 24px; font-size:13px; font-weight:bold;">Click When Done</button>
+                </div>
+              </div>
+
+              <div class="calib-metrics-grid">
+                <div class="calib-metric-chip">Offset X: <b>+0.02 m/s²</b></div>
+                <div class="calib-metric-chip">Offset Y: <b>-0.01 m/s²</b></div>
+                <div class="calib-metric-chip">Offset Z: <b>+9.81 m/s² (1G)</b></div>
+                <div class="calib-metric-chip" style="color:#39e75f;">Status: <b>NOMINAL</b></div>
+              </div>
             </div>
-          </footer>
+          </div>
+
+          <!-- 3. Compass Calibration Subpanel -->
+          <div id="panel-compass-calib" class="setup-subpanel hidden">
+            <div class="calib-card">
+              <div class="calib-header">
+                <h3>🧭 Live 3D Magnetometer / Compass Calibration</h3>
+                <span id="compass-samples-count" class="calib-chip">0 samples</span>
+              </div>
+              <p class="calib-desc">Rotate the vehicle around all axes (pitch, roll, yaw 360°) to sample the magnetic field sphere.</p>
+              
+              <div class="compass-calib-workspace">
+                <canvas id="compass-sphere-canvas" width="280" height="200" class="compass-canvas"></canvas>
+                <div class="compass-controls">
+                  <div class="calib-progress-track" style="margin-bottom:12px;">
+                    <div id="compass-calib-prog" class="calib-progress-fill" style="width: 0%;"></div>
+                  </div>
+                  <div style="display:flex; gap:10px;">
+                    <button id="btn-compass-start" class="mp-btn mp-btn-blue">Start Live Calibration</button>
+                    <button id="btn-compass-done" class="mp-btn mp-btn-green">Done &amp; Save Offsets</button>
+                  </div>
+                  <div class="compass-results-box">
+                    <div>Calculated Offsets: <b>[X: 12.4, Y: -4.2, Z: 8.1]</b></div>
+                    <div>Fitness Score: <b style="color:#39e75f;">99.4% (GREEN - High Precision)</b></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 4. Radio Calibration Subpanel -->
+          <div id="panel-radio-calib" class="setup-subpanel hidden">
+            <div class="calib-card">
+              <div class="calib-header">
+                <h3>📻 8-Channel Radio Transmitter Live Calibration</h3>
+                <button id="btn-radio-start-calib" class="mp-btn mp-btn-green">Calibrate Radio</button>
+              </div>
+              <p class="calib-desc">Ensure your transmitter is turned on. Move all sticks and switches to their physical limits to record min/max PWM.</p>
+
+              <div class="radio-channels-deck">
+                <div class="rc-channel-row"><span>Ch 1: Roll</span><div class="rc-bar-track"><div id="rc-ch1-bar" class="rc-bar-fill" style="width:50%;"></div></div><b id="rc-ch1-val">1500 µs</b></div>
+                <div class="rc-channel-row"><span>Ch 2: Pitch</span><div class="rc-bar-track"><div id="rc-ch2-bar" class="rc-bar-fill" style="width:50%;"></div></div><b id="rc-ch2-val">1500 µs</b></div>
+                <div class="rc-channel-row"><span>Ch 3: Throttle</span><div class="rc-bar-track"><div id="rc-ch3-bar" class="rc-bar-fill" style="width:0%;"></div></div><b id="rc-ch3-val">1000 µs</b></div>
+                <div class="rc-channel-row"><span>Ch 4: Yaw</span><div class="rc-bar-track"><div id="rc-ch4-bar" class="rc-bar-fill" style="width:50%;"></div></div><b id="rc-ch4-val">1500 µs</b></div>
+                <div class="rc-channel-row"><span>Ch 5: FlightMode</span><div class="rc-bar-track"><div id="rc-ch5-bar" class="rc-bar-fill" style="width:49%;"></div></div><b id="rc-ch5-val">1495 µs</b></div>
+                <div class="rc-channel-row"><span>Ch 6: Aux Tuning</span><div class="rc-bar-track"><div id="rc-ch6-bar" class="rc-bar-fill" style="width:50%;"></div></div><b id="rc-ch6-val">1500 µs</b></div>
+                <div class="rc-channel-row"><span>Ch 7: Payload Drop</span><div class="rc-bar-track"><div id="rc-ch7-bar" class="rc-bar-fill" style="width:0%;"></div></div><b id="rc-ch7-val">1000 µs</b></div>
+                <div class="rc-channel-row"><span>Ch 8: E-Stop / RTL</span><div class="rc-bar-track"><div id="rc-ch8-bar" class="rc-bar-fill" style="width:0%;"></div></div><b id="rc-ch8-val">1000 µs</b></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 5. Flight Modes Subpanel -->
+          <div id="panel-flight-modes" class="setup-subpanel hidden">
+            <div class="calib-card">
+              <div class="calib-header">
+                <h3>🎮 6-Position Flight Modes Configuration</h3>
+                <button id="btn-save-flight-modes" class="mp-btn mp-btn-green">Save Flight Modes to FCU</button>
+              </div>
+              <p class="calib-desc">Maps transmitter Channel 5 PWM thresholds (1000-2000µs) to autonomous and stabilized flight modes.</p>
+
+              <table class="plan-wp-table" style="max-width: 600px; margin-top: 10px;">
+                <thead>
+                  <tr><th>Switch Pos</th><th>PWM Range</th><th>Flight Mode</th><th>Status</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><b>Mode 1</b></td><td>0 - 1230 µs</td><td><select id="mode-sel-1" class="plan-side-dropdown"><option value="STABILIZE" selected>STABILIZE</option><option value="ALTHOLD">ALTHOLD</option><option value="LOITER">LOITER</option><option value="AUTO">AUTO</option><option value="GUIDED">GUIDED</option><option value="RTL">RTL</option></select></td><td>-</td></tr>
+                  <tr><td><b>Mode 2</b></td><td>1231 - 1360 µs</td><td><select id="mode-sel-2" class="plan-side-dropdown"><option value="STABILIZE">STABILIZE</option><option value="ALTHOLD" selected>ALTHOLD</option><option value="LOITER">LOITER</option><option value="AUTO">AUTO</option><option value="GUIDED">GUIDED</option><option value="RTL">RTL</option></select></td><td>-</td></tr>
+                  <tr style="background:#0f2e1b;"><td><b>Mode 3</b></td><td>1361 - 1490 µs</td><td><select id="mode-sel-3" class="plan-side-dropdown"><option value="STABILIZE">STABILIZE</option><option value="ALTHOLD">ALTHOLD</option><option value="LOITER" selected>LOITER</option><option value="AUTO">AUTO</option><option value="GUIDED">GUIDED</option><option value="RTL">RTL</option></select></td><td style="color:#39e75f; font-weight:bold;">ACTIVE</td></tr>
+                  <tr><td><b>Mode 4</b></td><td>1491 - 1620 µs</td><td><select id="mode-sel-4" class="plan-side-dropdown"><option value="STABILIZE">STABILIZE</option><option value="ALTHOLD">ALTHOLD</option><option value="LOITER">LOITER</option><option value="AUTO" selected>AUTO</option><option value="GUIDED">GUIDED</option><option value="RTL">RTL</option></select></td><td>-</td></tr>
+                  <tr><td><b>Mode 5</b></td><td>1621 - 1749 µs</td><td><select id="mode-sel-5" class="plan-side-dropdown"><option value="STABILIZE">STABILIZE</option><option value="ALTHOLD">ALTHOLD</option><option value="LOITER">LOITER</option><option value="AUTO">AUTO</option><option value="GUIDED" selected>GUIDED</option><option value="RTL">RTL</option></select></td><td>-</td></tr>
+                  <tr><td><b>Mode 6</b></td><td>1750+ µs</td><td><select id="mode-sel-6" class="plan-side-dropdown"><option value="STABILIZE">STABILIZE</option><option value="ALTHOLD">ALTHOLD</option><option value="LOITER">LOITER</option><option value="AUTO">AUTO</option><option value="GUIDED">GUIDED</option><option value="RTL" selected>RTL</option></select></td><td>-</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- 6. Failsafe Subpanel -->
+          <div id="panel-failsafe" class="setup-subpanel hidden">
+            <div class="calib-card">
+              <div class="calib-header">
+                <h3>🛡️ Safety &amp; Failsafe Actions</h3>
+                <span class="calib-chip" style="color:#39e75f;">ALL SAFEGUARDS ARMED</span>
+              </div>
+              <div class="failsafe-grid">
+                <div class="failsafe-item">
+                  <h4>🔋 Low Battery Failsafe</h4>
+                  <p>Triggers Return-To-Launch when 4S LiPo drops below 14.8V or 15% reserve.</p>
+                  <label class="plan-check"><input type="checkbox" checked> Enable Battery RTL</label>
+                </div>
+                <div class="failsafe-item">
+                  <h4>📡 Radio Link Failsafe</h4>
+                  <p>Autonomous Return-To-Launch if RC or RF link is interrupted for > 1.5 seconds.</p>
+                  <label class="plan-check"><input type="checkbox" checked> Enable RC Failsafe</label>
+                </div>
+                <div class="failsafe-item">
+                  <h4>💻 Ground Control Station (GCS) Failsafe</h4>
+                  <p>Vehicle executes safe hover and automated return if GCS telemetry link disconnects for > 5.0 seconds.</p>
+                  <label class="plan-check"><input type="checkbox" checked> Enable GCS RTL Failsafe</label>
+                </div>
+                <div class="failsafe-item">
+                  <h4>🛑 Indoor Arena Geofence</h4>
+                  <p>Max Ceiling: 15.0m | Max Horizontal Radius: 25.0m | Breach Action: Instant RTL &amp; Safe Descent.</p>
+                  <label class="plan-check"><input type="checkbox" checked> Enforce Cylindrical Geofence</label>
+                </div>
+              </div>
+            </div>
+          </div>
+
         </main>
       </div>
     </div>
@@ -674,34 +830,70 @@
       <div class="config-view-container">
         <aside class="config-sidebar">
           <ul class="setup-nav-list">
-            <li class="setup-nav-item active">Standard Parameters</li>
-            <li class="setup-nav-item">Advanced Parameters</li>
-            <li class="setup-nav-item">Full Parameter Tree</li>
-            <li class="setup-nav-item">Failsafe Actions</li>
-            <li class="setup-nav-item">GeoFence Boundaries</li>
+            <li class="setup-nav-item active" data-cat="standard">Standard Parameters</li>
+            <li class="setup-nav-item" data-cat="advanced">Advanced Parameters</li>
+            <li class="setup-nav-item" data-cat="all">Full Parameter Tree</li>
+            <li class="setup-nav-item" data-cat="pid">Basic PID Tuning</li>
+            <li class="setup-nav-item" data-cat="failsafe">Failsafe Actions</li>
+            <li class="setup-nav-item" data-cat="geofence">GeoFence Boundaries</li>
           </ul>
         </aside>
+
         <main class="config-main-area">
           <div class="config-param-header">
-            <h3>TEAM HANTRAMANAV Parameter Management</h3>
+            <div style="flex:1; margin-right: 15px;">
+              <h3 style="margin-bottom:6px;">TEAM HANTRAMANAV Parameter Management</h3>
+              <input id="param-search-input" class="param-search-box" placeholder="🔍 Search parameter by name or description..." />
+            </div>
             <div class="config-param-actions">
-              <button class="plan-btn-green">Refresh Params</button>
-              <button class="plan-btn-green">Write Params</button>
-              <button class="plan-tool-btn">Save to File</button>
+              <button class="plan-btn-green" onclick="window._gcsControls.ws.send('get_parameters')">Refresh Params</button>
+              <button class="plan-btn-green" onclick="window._gcsControls.ws.send('set_parameters', {parameters:{}})">Write Params</button>
+              <button class="plan-tool-btn" onclick="alert('Saved parameter backup to disk.');">Save to File</button>
             </div>
           </div>
-          <table class="plan-wp-table">
-            <thead>
-              <tr><th>Parameter</th><th>Value</th><th>Unit</th><th>Options</th><th>Description</th></tr>
-            </thead>
-            <tbody>
-              <tr><td><b>EK3_SRC1_POSXY</b></td><td>3 (LiDAR)</td><td>-</td><td>0-6</td><td>Horizontal position source for EKF3 (Indoor SLAM)</td></tr>
-              <tr><td><b>EK3_SRC1_VELXY</b></td><td>5 (OpticalFlow)</td><td>-</td><td>0-6</td><td>Velocity source for indoor hover stability</td></tr>
-              <tr><td><b>FS_THR_ENABLE</b></td><td>1 (RTL)</td><td>-</td><td>0-3</td><td>Radio Failsafe response action</td></tr>
-              <tr><td><b>FS_BATT_VOLT</b></td><td>14.8</td><td>Volts</td><td>12-18</td><td>Low battery safety threshold</td></tr>
-              <tr><td><b>WPNAV_SPEED</b></td><td>70</td><td>cm/s</td><td>10-200</td><td>Exploration search velocity</td></tr>
-            </tbody>
-          </table>
+
+          <!-- Parameter Table Wrapper -->
+          <div id="config-param-table-wrap" class="plan-table-wrapper" style="max-height: 520px;">
+            <table class="plan-wp-table">
+              <thead>
+                <tr><th>Parameter</th><th>Value</th><th>Unit</th><th>Category</th><th>Description</th></tr>
+              </thead>
+              <tbody id="config-param-tbody">
+                <!-- Dynamically populated by MissionPlannerFeatureManager -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Basic PID Tuning Deck -->
+          <div id="config-pid-tuning-card" class="calib-card hidden">
+            <div class="calib-header">
+              <h3>🎛️ Basic Attitude Rate &amp; Altitude PID Tuning</h3>
+              <button class="plan-btn-green" onclick="alert('✅ Attitude & Alt PIDs written to FCU.')">Write PIDs to Autopilot</button>
+            </div>
+            <p class="calib-desc">Adjust controller gains for indoor hovering precision and corridor drift compensation.</p>
+            
+            <div class="pid-tuning-grid">
+              <div class="pid-group">
+                <h4>Roll Rate (ATC_RAT_RLL)</h4>
+                <div class="pid-row"><label>P Gain:</label> <input type="range" min="0.05" max="0.30" step="0.005" value="0.135" class="pid-slider"> <span>0.135</span></div>
+                <div class="pid-row"><label>I Gain:</label> <input type="range" min="0.02" max="0.20" step="0.005" value="0.090" class="pid-slider"> <span>0.090</span></div>
+                <div class="pid-row"><label>D Gain:</label> <input type="range" min="0.001" max="0.01" step="0.0005" value="0.0036" class="pid-slider"> <span>0.0036</span></div>
+              </div>
+              <div class="pid-group">
+                <h4>Pitch Rate (ATC_RAT_PIT)</h4>
+                <div class="pid-row"><label>P Gain:</label> <input type="range" min="0.05" max="0.30" step="0.005" value="0.135" class="pid-slider"> <span>0.135</span></div>
+                <div class="pid-row"><label>I Gain:</label> <input type="range" min="0.02" max="0.20" step="0.005" value="0.090" class="pid-slider"> <span>0.090</span></div>
+                <div class="pid-row"><label>D Gain:</label> <input type="range" min="0.001" max="0.01" step="0.0005" value="0.0036" class="pid-slider"> <span>0.0036</span></div>
+              </div>
+              <div class="pid-group">
+                <h4>Altitude Hold (PSC_POSZ)</h4>
+                <div class="pid-row"><label>Pos P:</label> <input type="range" min="0.5" max="2.5" step="0.1" value="1.0" class="pid-slider"> <span>1.0</span></div>
+                <div class="pid-row"><label>Vel P:</label> <input type="range" min="1.0" max="6.0" step="0.2" value="3.5" class="pid-slider"> <span>3.5</span></div>
+                <div class="pid-row"><label>Accel P:</label> <input type="range" min="0.1" max="1.0" step="0.05" value="0.3" class="pid-slider"> <span>0.3</span></div>
+              </div>
+            </div>
+          </div>
+
         </main>
       </div>
     </div>
@@ -779,6 +971,28 @@
       </div>
     </div>
 
+    <!-- 5. SURVEY AUTO GRID MODAL -->
+    <div id="survey-modal" class="modal-backdrop hidden">
+      <div class="modal-card" style="max-width: 480px;">
+        <div class="modal-header">⚡ AUTO SURVEY &amp; SEARCH GRID GENERATOR</div>
+        <div class="modal-body">
+          <p style="font-size:12px; color:#9ca3af; margin-bottom:12px;">
+            Generates an optimal serpentine / lawnmower exploration trajectory to survey the entire arena for survivors.
+          </p>
+          <div class="survey-form-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:11.5px;">
+            <label>Arena Width (m): <br><input type="number" id="survey-width" value="20" class="plan-input-mini" style="width:75px; margin-top:3px;"></label>
+            <label>Arena Height (m): <br><input type="number" id="survey-height" value="20" class="plan-input-mini" style="width:75px; margin-top:3px;"></label>
+            <label>Cruising Alt (m): <br><input type="number" id="survey-alt" value="2.5" class="plan-input-mini" style="width:75px; margin-top:3px;"></label>
+            <label>Lane Spacing (m): <br><input type="number" id="survey-spacing" value="3.0" class="plan-input-mini" style="width:75px; margin-top:3px;"></label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="btn-survey-cancel" class="btn btn-secondary">CANCEL</button>
+          <button id="btn-survey-generate" class="btn btn-primary" style="background:#65a30d;">GENERATE SEARCH GRID</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <!-- SCRIPT INCLUDES -->
@@ -790,6 +1004,7 @@
   <script src="js/radio_view.js"></script>
   <script src="js/event_log.js"></script>
   <script src="js/controls.js"></script>
+  <script src="js/mission_planner_features.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
